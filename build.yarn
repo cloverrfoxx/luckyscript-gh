@@ -1,0 +1,47 @@
+all: lky
+
+lky: xlky lexer.s2 parser.s2 transpiler.s2 src/lky.ls
+	./xlky -d src/lky.ls -o dddd
+	mv dddd lky
+
+lexer.s2: src/lexer.ls
+	./xlky -d -i src/lexer.ls -o lib/dddd
+	mv lib/dddd lib/lexer.so
+
+parser.s2: src/ast.ls src/parser.ls
+	./xlky -d -i src/ast.ls -o lib/dddd
+	mv lib/dddd lib/ast.map
+	./xlky -d -i src/parser.ls -o lib/dddd
+	mv lib/dddd lib/parser.so
+
+transpiler.s2: src/transpiler.ls
+	./xlky -d -i src/transpiler.ls -o lib/dddd
+	mv lib/dddd lib/transpiler.so
+
+
+xlky: lexer.s1 parser.s1 transpiler.s1 src/lky.ls
+	lky -d src/lky.ls -o dddd
+	mv dddd xlky
+
+lexer.s1: src/lexer.ls
+	lky -d -i src/lexer.ls -o lib/dddd
+	mv lib/dddd lib/lexer.so
+
+parser.s1: src/ast.ls src/parser.ls
+	lky -d -i src/ast.ls -o lib/dddd
+	mv lib/dddd lib/ast.map
+	lky -d -i src/parser.ls -o lib/dddd
+	mv lib/dddd lib/parser.so
+
+transpiler.s1: src/transpiler.ls
+	lky -d -i src/transpiler.ls -o lib/dddd
+	mv lib/dddd lib/transpiler.so
+
+clean:
+	rm lib/lexer.so
+	rm lib/ast.map
+	rm lib/parser.so
+	rm lib/transpiler.so
+	rm xlky
+	rm lky
+	rm .hash.yarn

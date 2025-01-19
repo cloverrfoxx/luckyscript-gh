@@ -1,0 +1,330 @@
+import_code("/root/LuckyScript/lky/lib/ast.map")
+parser_t={}
+Parser=function()
+	parser=new outer.parser_t
+	ast=outer.AST
+	t=null
+	t_l=0
+	pos=0
+	err=function(msg="Unknown error",pos)
+		return {"err":msg,"value":0,"pos":pos}
+	end function
+	ok=function(value)
+		return {"err":0,"value":value}
+	end function
+	bail=function()
+		outer.parser.errpos=t[-1].pos
+		return outer.err("Out of tokens.")
+	end function
+	syn=function(p,ttype,expected)
+		outer.parser.errpos=p
+		return outer.err("Invalid syntax: Got "+ttype+", expected "+expected)
+	end function
+	parsers={}
+	parsers.statelist=function()
+		states=[]
+		while t_l>pos
+			if t[pos].type=="Semi" then
+				outer.pos=outer.pos+1
+				continue
+			end if
+			child=outer.parsers.state()
+			if child.err then return child else push(states,child.value)
+			if t_l>pos and t[pos].type!="Semi" then return outer.syn(t[pos].pos,t[pos].type,"Semi")
+		end while
+		if states[1:]==[] then return outer.ok(states[0]) else return outer.ok(outer.ast.StateList(states))
+	end function
+	parsers.state=function()
+		token=t[pos].type
+		if token=="KW.if" then
+			node=outer.parsers.ifstate()
+		else if token=="KW.for" then
+			node=outer.parsers.forstate()
+		else if token=="KW.while" then
+			node=outer.parsers.whilestate()
+		else if token=="KW.return" then
+			node=outer.parsers.returnstate()
+		else if token=="KW.continue" then
+			outer.pos=outer.pos+1
+			return outer.ok(outer.ast.ContinueState())
+		else if token=="KW.break" then
+			outer.pos=outer.pos+1
+			return outer.ok(outer.ast.BreakState())
+		else
+			node=outer.parsers.condition()
+		end if
+		return node
+	end function
+	parsers.ifstate=function()
+		outer.pos=outer.pos+1
+		cond=outer.parsers.condition()
+		if cond.err then return cond
+		if t_l<=pos then return outer.bail()
+		if t[pos].type=="LCurly" then blk=outer.parsers.block() else blk=outer.parsers.state()
+		if blk.err then return blk
+		alt=null
+		if t_l>pos and t[pos].type=="KW.else" then
+			outer.pos=outer.pos+1
+			if t_l<=pos then return outer.bail()
+			if t[pos].type=="KW.if" then
+				alt=outer.parsers.ifstate()
+			else if t[pos].type=="LCurly" then
+				alt=outer.parsers.block()
+			else
+				alt=outer.parsers.state()
+			end if
+			if alt.err then return alt
+			alt=alt.value
+		end if
+		return outer.ok(outer.ast.IfState(cond.value,blk.value,alt))
+	end function
+	parsers.block=function()
+		if t_l<=pos then return outer.bail()
+		if t[pos].type!="LCurly" then return outer.syn(t[pos].pos,t[pos].type,"LCurly")
+		outer.pos=outer.pos+1
+		states=[]
+		while t_l>pos and t[pos].type!="RCurly"
+			if t[pos].type=="Semi" then
+				outer.pos=outer.pos+1
+				continue
+			end if
+			child=outer.parsers.state()
+			if child.err then return child else push(states,child.value)
+			if pos<t_l and indexOf(["Semi","RCurly"],t[pos].type)==null then return outer.syn(t[pos].pos,t[pos].type,"RCurly or Semi")
+		end while
+		if t_l<=pos then return outer.bail()
+		if t[pos].type!="RCurly" then return outer.syn(t[pos].pos,t[pos].type,"RCurly")
+		outer.pos=outer.pos+1
+		return outer.ok(outer.ast.StateList(states))
+	end function
+	parsers.forstate=function()
+		outer.pos=outer.pos+1
+		init=outer.parsers.condition()
+		if init.err then return init
+		if t_l<=pos then return outer.bail()
+		if t[pos].type!="KW.in" then return outer.syn(t[pos].pos,t[pos].type,"KW.in")
+		outer.pos=outer.pos+1
+		array=outer.parsers.condition()
+		if array.err then return array
+		if t_l<=pos then return outer.bail()
+		if t[pos].type=="LCurly" then blk=outer.parsers.block() else blk=outer.parsers.state()
+		if blk.err then return blk
+		return outer.ok(outer.ast.ForInState(init.value,array.value,blk.value))
+	end function
+	parsers.whilestate=function()
+		outer.pos=outer.pos+1
+		cond=outer.parsers.condition()
+		if cond.err then return cond
+		if t_l<=pos then return outer.bail()
+		if t[pos].type=="LCurly" then blk=outer.parsers.block() else blk=outer.parsers.state()
+		if blk.err then return blk
+		return outer.ok(outer.ast.WhileState(cond.value,blk.value))
+	end function
+	parsers.returnstate=function()
+		outer.pos=outer.pos+1
+		val=outer.parsers.condition()
+		if val.err then return val
+		return outer.ok(outer.ast.ReturnState(val.value))
+	end function
+	parsers._expr=function(ops,f)
+		node=f()
+		if node.err then return node
+		node=node.value
+		while t_l>pos
+			op=t[pos].type
+			if indexOf(ops,op)==null then break
+			outer.pos=outer.pos+1
+			ex=f()
+			if ex.err then return ex
+			node=outer.ast.BinOp(node,op,ex.value)
+		end while
+		return outer.ok(node)
+	end function
+	parsers.condition=function()
+		return outer.parsers._expr(["And","Or"],outer.parsers["comparison"])
+	end function
+	parsers.comparison=function()
+		return outer.parsers._expr(["GEqual","LEqual","Equal","NEqual","Greater","Lesser"],outer.parsers["expression"])
+	end function
+	parsers.expression=function()
+		return outer.parsers._expr(["Plus","Minus"],outer.parsers["term"])
+	end function
+	parsers.term=function()
+		return outer.parsers._expr(["Asterisk","Slash","Percent"],outer.parsers["exponent"])
+	end function
+	parsers.exponent=function()
+		return outer.parsers._expr(["Exponent"],outer.parsers["assignment"])
+	end function
+	parsers.assignment=function()
+		node=outer.parsers.unary()
+		if node.err then return node
+		node=node.value
+		if t_l>pos and indexOf(["Assign","Append","AssignMul","AssignDiv","AssignMod","AssignExp","Detach"],t[pos].type)!=null then
+			op=t[pos].type
+			outer.pos=outer.pos+1
+			if t_l<=pos then return outer.bail()
+			if node.classID=="Func" then
+				if op!="Assign" then return outer.syn(t[pos].pos,t[pos].type,"Assign")
+				if t_l<=pos then return outer.bail()
+				if t[pos].type=="LCurly" then blk=outer.parsers.block() else blk=outer.parsers.state()
+				if blk.err then return blk
+				node=outer.ast.BinOp(node,op,blk.value)
+			else
+				r=outer.parsers.condition()
+				if r.err then return r
+				node=outer.ast.BinOp(node,op,r.value)
+			end if
+		end if
+		return outer.ok(node)
+	end function
+	parsers.unary=function()
+		if t_l>pos and indexOf(["Plus","Minus","Not","Inc","Dec","Pointer"],t[pos].type)!=null then
+			op=t[pos].type
+			outer.pos=outer.pos+1
+			node=outer.parsers.unary()
+			if node.err then return node
+			return outer.ok(outer.ast.UnaryOp(op,node.value))
+		end if
+		node=outer.parsers.newstate()
+		if node.err then return node
+		node=node.value
+		if t_l>pos and indexOf(["Inc","Dec"],t[pos].type)!=null then
+			node=outer.ast.UnaryOp(t[pos].type,node)
+			outer.pos=outer.pos+1
+		end if
+		return outer.ok(node)
+	end function
+	parsers.newstate=function()
+		type=t[pos].type
+		if type=="KW.new" then outer.pos=outer.pos+1
+		node=outer.parsers.varops()
+		if node.err then return node
+		if type=="KW.new" then return outer.ok(outer.ast.NewState(node.value)) else return node
+	end function
+	parsers.varops=function()
+		node=outer.parsers.factor()
+		if node.err then return node
+		node=node.value
+		while t_l>pos
+			op=t[pos].type
+			if indexOf(["Dot","LSquare","LParen"],op)==null then break
+			outer.pos=outer.pos+1
+			if op=="Dot" then
+				if t_l<=pos then return outer.bail()
+				if t[pos].type!="ID" then return outer.syn(t[pos].pos,t[pos].type,"ID")
+				node=outer.ast.IndexOp(node,0,t[pos])
+				outer.pos=outer.pos+1
+			else if op=="LSquare" then
+				startIdx=null
+				endIdx=null
+				if t_l>pos and t[pos].type=="Colon" then
+					outer.pos=outer.pos+1
+					startIdx=0
+					endIdx=outer.parsers.condition()
+					if endIdx.err then return endIdx
+					endIdx=endIdx.value
+				else
+					startIdx=outer.parsers.condition()
+					if startIdx.err then return startIdx
+					startIdx=startIdx.value
+					if t_l>pos and t[pos].type=="Colon" then
+						outer.pos=outer.pos+1
+						endIdx=0
+						if t_l>pos and t[pos].type!="RSquare" then
+							endIdx=outer.parsers.condition()
+							if endIdx.err then return endIdx
+							endIdx=endIdx.value
+						end if
+					end if
+				end if
+				if t_l<=pos then return outer.bail()
+				if t[pos].type!="RSquare" then return outer.syn(t[pos].pos,t[pos].type,"RSquare")
+				outer.pos=outer.pos+1
+				if endIdx==null then node=outer.ast.IndexOp(node,1,startIdx) else node=outer.ast.Slice(node,startIdx,endIdx)
+			else if op=="LParen" then
+				args=[]
+				while t_l>pos and t[pos].type!="RParen"
+					arg=outer.parsers.condition()
+					if arg.err then return arg else push(args,arg.value)
+					if t_l<=pos then return outer.bail()
+					if indexOf(["Comma","RParen"],t[pos].type)==null then return outer.syn(t[pos].pos,t[pos].type,"RParen or Comma")
+					if t[pos].type=="Comma" then outer.pos=outer.pos+1
+				end while
+				if t_l<=pos then return outer.bail()
+				if t[pos].type!="RParen" then return outer.syn(t[pos].pos,t[pos].type,"RParen")
+				outer.pos=outer.pos+1
+				node=outer.ast.Func(node,args)
+			end if
+		end while
+		return outer.ok(node)
+	end function
+	parsers.factor=function()
+		if t_l>pos and t[pos].type=="LParen" then
+			outer.pos=outer.pos+1
+			node=outer.parsers.condition()
+			if node.err then return node
+			if t_l<=pos then return outer.bail()
+			if t[pos].type!="RParen" then return outer.syn(t[pos].pos,t[pos].type,"RParen")
+			outer.pos=outer.pos+1
+			node=outer.ast.Cap(node.value)
+		else
+			node=outer.parsers.primary()
+			if node.err then return node
+			node=node.value
+		end if
+		return outer.ok(node)
+	end function
+	parsers.primary=function()
+		if t_l<=pos then return outer.bail()
+		token=t[pos]
+		node=outer.ast.NoOp()
+		if token.type=="ID" then
+			node=outer.ast.ID(token)
+			outer.pos=outer.pos+1
+		else if indexOf(["Null","Bool","String","Int"],token.type)!=null then
+			node=outer.ast.Type(token)
+			outer.pos=outer.pos+1
+		else if token.type=="LSquare" then
+			outer.pos=outer.pos+1
+			children=[]
+			while t_l>pos and t[pos].type!="RSquare"
+				child=outer.parsers.condition()
+				if child.err then return child else push(children,child.value)
+				if t_l<=pos then return outer.bail()
+				if indexOf(["RSquare","Comma"],t[pos].type)==null then return outer.syn(t[pos].pos,t[pos].type,"RSquare or Comma")
+				if t[pos].type=="Comma" then outer.pos=outer.pos+1
+			end while
+			if t_l<=pos then return outer.bail()
+			if t[pos].type!="RSquare" then return outer.syn(t[pos].pos,t[pos].type,"RSquare")
+			outer.pos=outer.pos+1
+			node=outer.ast.Array(children)
+		else if token.type=="LCurly" then
+			outer.pos=outer.pos+1
+			children=[]
+			while t_l>pos and t[pos].type!="RCurly"
+				left=outer.parsers.condition()
+				if left.err then return left
+				if t_l<=pos then return outer.bail()
+				if t[pos].type!="Colon" then return outer.syn(t[pos].pos,t[pos].type,"Colon")
+				outer.pos=outer.pos+1
+				right=outer.parsers.condition()
+				if right.err then return right else push(children,[left.value,right.value])
+				if t_l<=pos then return outer.bail()
+				if indexOf(["RCurly","Comma"],t[pos].type)==null then return outer.syn(t[pos].pos,t[pos].type,"RCurly or Comma")
+				if t[pos].type=="Comma" then outer.pos=outer.pos+1
+			end while
+			if t_l<=pos then return outer.bail()
+			if t[pos].type!="RCurly" then return outer.syn(t[pos].pos,t[pos].type,"RCurly")
+			outer.pos=outer.pos+1
+			node=outer.ast.Dict(children)
+		end if
+		return outer.ok(node)
+	end function
+	parser.parse=function(tokens)
+		outer.t=tokens
+		outer.t_l=len(tokens)
+		outer.pos=0
+		return outer.parsers.statelist()
+	end function
+	return parser
+end function

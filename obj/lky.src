@@ -1,0 +1,126 @@
+import_code("/root/LuckyScript/argparse/argparse.so")
+import_code("/root/foxlib/logger.so")
+logger=Logger
+import_code("/root/LuckyScript/lky/lib/lexer.so")
+import_code("/root/LuckyScript/lky/lib/parser.so")
+import_code("/root/LuckyScript/lky/lib/transpiler.so")
+LS={}
+LS.Version="0.1.12"
+LS.arrow="»"
+LS.printHeaders=1
+LS.err=function(section,line,text,message,file)
+	if not section then section="Unknown"
+	if not message then message="Unknown Error"
+	s=text[line.line.real:line.pos.real+1]
+	if not file then file="REPL"
+	print(char(160))
+	logger.err(file+" > Lucky."+section+" error "+line.line.disp+":"+line.pos.disp+". "+message)
+	print(s)
+	print((" "*(line.pos.disp-1))+"^")
+end function
+LS.getLine=function(text,sub=null)
+	if sub==null then sub=0
+	if sub>=text.len() then sub=text.len()-1
+	line={"line":{"real":0,"disp":1},"pos":{"real":sub,"disp":0}}
+	textPre=text[:sub]
+	lines=textPre.split("
+")
+	line.line.disp=lines.len()
+	line.line.real=textPre.lastIndexOf("
+")
+	line.pos.disp=1+lines[-1].len()
+	return line
+end function
+LS.header=function()
+	if not LS.printHeaders then return
+	print("<#ffa>[LuckyScript V"+LS.Version+"]</color>
+"+"[Host: Command Line on <#aaf>Ellipse</color>]
+"+"[By <#ffa>Clover</color>]")
+	LS.printHeaders=0
+end function
+LS.printHelp=function()
+	print("Usage: "+program_path+" [option] ... [file] [-o file]
+"+"Options and arguments:
+"+"-?, -h, --help        : Print this help message and exit.
+"+"-o, --output file     : Output file.
+"+"-d, --clean           : Delete generated source file.
+"+"-i, --importable      : Allow Import.
+"+"-n, --dryrun          : Don't run; only echo.
+"+"-s, --silent, --quiet : Silence output.
+"+"file                  : Program read from script file.")
+end function
+LS.transpile=function(IFile,OFile,Importable=0,Clean=0)
+	dir=current_path
+	oname=OFile.split("/")[-1]+".src"
+	if OFile.indexOf("/")!=null then dir=dir+"/"+parent_path(OFile)
+	if OFile[0]=="/" then dir=parent_path(OFile)
+	ifile=get_shell.host_computer.File(IFile)
+	if not ifile then
+		logger.err("Error opening file: "+IFile)
+		return -1
+	end if
+	if not globals.Dryrun then get_shell.host_computer.touch(dir,oname)
+	if not globals.Dryrun then ofile=get_shell.host_computer.File(dir+"/"+oname)
+	if not globals.Dryrun and not ofile then
+		logger.err("Error opening file: "+OFile)
+		return -1
+	end if
+	lexer=Lexer()
+	parser=Parser()
+	content=ifile.get_content()
+	if not globals.Silent then logger.info("[Transpiling "+ifile.path()+" to "+dir+"/"+OFile.split("/")[-1]+"...]")
+	tokens=lexer.lex(content)
+	tree=parser.parse(tokens)
+	if tree.err then
+		LS.err("Parser",LS.getLine(content,parser.errpos),content,tree.err,IFile)
+		exit()
+	end if
+	transpiled=Transpile(tree.value)
+	if not globals.Dryrun then test=ofile.set_content(transpiled)
+	if not globals.Dryrun and typeof(test)=="string" then
+		logger.err(test)
+		exit()
+	end if
+	if not globals.Dryrun then test=get_shell.build(ofile.path(),dir,Importable)
+	if not globals.Dryrun and test.len() then
+		logger.err(test)
+		exit()
+	end if
+	if not globals.Dryrun and Clean then ofile.delete()
+	if not globals.Silent then logger.info("<#ffa>[Done!]</color>")
+	return 0
+end function
+IFile=null
+Importable=0
+Clean=0
+output=null
+Dryrun=0
+Silent=0
+argparse=ArgParser()
+result=argparse.addArg(["--help"],0,["h","?"]).addArg(["--silent","--quiet"],0,["s"]).addArg(["--dryrun"],0,["n"]).addArg(["--importable"],0,["i"]).addArg(["--clean"],0,["d"]).addArg(["--output"],null,["o"]).addPositional("file").parse(params)
+if result then
+	logger.err(result)
+	exit()
+end if
+IFile=argparse.getPositional("file")
+Importable=argparse.getValue("--importable")
+Clean=argparse.getValue("--clean")
+output=argparse.getValue("--output")
+Dryrun=argparse.getValue("--dryrun")
+Silent=argparse.getValue("--silent")
+LS.printHeaders=not Silent
+if argparse.getValue("--help") then
+	LS.header()
+	LS.printHelp()
+	exit()
+end if
+LS.header()
+if output then
+	if not IFile then
+		logger.err("No Input file specified.")
+		exit()
+	end if
+	LS.transpile(IFile,output,Importable,Clean)
+else
+	LS.printHelp()
+end if

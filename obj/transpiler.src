@@ -1,0 +1,176 @@
+Transpile=function(node,ind=0,alt=0)
+	type=node.classID
+	s=char(9)*ind
+	if type=="StateList" then
+		s=""
+		for child in node.states
+			if __child_idx!=0 then s=s+"
+"
+			s=s+Transpile(child,ind)
+		end for
+		return s
+	else if type=="IfState" then
+		if alt then s=""
+		s=s+"if "+Transpile(node.cond,ind+1).trim()+" then"
+		if indexOf(["StateList","IfState","WhileState","ForState","ForInState"],node.blk.classID)!=null or alt or (node.alt and indexOf(["StateList","IfState","WhileState","ForState","ForInState"],node.alt.classID)!=null) then
+			s=s+"
+"+Transpile(node.blk,ind+1)
+			if node.alt then
+				s=s+"
+"+(char(9)*ind)+"else"
+				if node.alt.classID=="IfState" then s=s+" "+Transpile(node.alt,ind,1) else s=s+"
+"+Transpile(node.alt,ind+1)
+			end if
+			if not alt then s=s+"
+"+(char(9)*ind)+"end if"
+		else
+			s=s+" "+Transpile(node.blk,ind+1).trim()
+			if node.alt then
+				s=s+" else "+Transpile(node.alt,ind+1).trim()
+			end if
+		end if
+		return s
+	else if type=="ContinueState" then
+		return s+"continue"
+	else if type=="BreakState" then
+		return s+"break"
+	else if type=="ForState" then
+
+	else if type=="ForInState" then
+		s=s+"for "+Transpile(node.init,ind+1).trim()+" in "+Transpile(node.array,ind+1).trim()
+		s=s+"
+"+Transpile(node.blk,ind+1)
+		return s+"
+"+(char(9)*ind)+"end for"
+	else if type=="WhileState" then
+		s=s+"while "+Transpile(node.cond,ind+1).trim()
+		s=s+"
+"+Transpile(node.blk,ind+1)
+		return s+"
+"+(char(9)*ind)+"end while"
+	else if type=="ReturnState" then
+		return s+"return "+Transpile(node.val,ind+1).trim()
+	else if type=="NewState" then
+		return s+"new "+Transpile(node.object,ind+1).trim()
+	else if type=="Encapsulate" then
+		return s+"("+Transpile(node.expr,ind+1).trim()+")"
+	else if type=="BinOp" then
+		l=Transpile(node.l,ind+1)
+		r=Transpile(node.r,ind+1)
+		op=node.op
+		if op=="Assign" and node.l.classID=="Func" then
+			name=Transpile(node.l.target,ind+1)
+			s=s+name+"=function("
+			for arg in node.l.args
+				if __arg_idx!=0 then s=s+","
+				s=s+Transpile(arg,ind+1).trim()
+			end for
+			s=s+")"+"
+"+r
+			return s+"
+"+(char(9)*ind)+"end function"
+		end if
+		s=s+l
+		if op=="Or" then
+			s=s+" or "
+		else if op=="And" then
+			s=s+" and "
+		else if op=="GEqual" then
+			s=s+">="
+		else if op=="LEqual" then
+			s=s+"<="
+		else if op=="Equal" then
+			s=s+"=="
+		else if op=="NEqual" then
+			s=s+"!="
+		else if op=="Greater" then
+			s=s+">"
+		else if op=="Lesser" then
+			s=s+"<"
+		else if op=="Plus" then
+			s=s+"+"
+		else if op=="Minus" then
+			s=s+"-"
+		else if op=="Asterisk" then
+			s=s+"*"
+		else if op=="Slash" then
+			s=s+"/"
+		else if op=="Percent" then
+			s=s+"%"
+		else if op=="Exponent" then
+			s=s+"^"
+		else if op=="Assign" then
+			s=s+"="
+		else if op=="Append" then
+			s=s+"="+l+"+"
+		else if op=="AssignMul" then
+			s=s+"="+l+"*"
+		else if op=="AssignDiv" then
+			s=s+"="+l+"/"
+		else if op=="AssignMod" then
+			s=s+"="+l+"%"
+		else if op=="AssignExp" then
+			s=s+"="+l+"^"
+		else if op=="Detach" then
+			s=s+"="+l+"-"
+		end if
+		return s+r.trim()
+	else if type=="UnaryOp" then
+		ex=Transpile(node.ex,ind+1).trim()
+		op=node.op
+		if op=="Plus" then
+			s="+"
+		else if op=="Minus" then
+			s="-"
+		else if op=="Not" then
+			s="not "
+		else if op=="Pointer" then
+			s="@"
+		end if
+		s=s+ex
+		if op=="Inc" then
+			s=s+"="+ex+"+1"
+		else if op=="Dec" then
+			s=s+"="+ex+"-1"
+		end if
+		return s
+	else if type=="IndexOp" then
+		r=Transpile(node.r,ind+1)
+		s=Transpile(node.l,ind+1)
+		if node.resolv then s=s+"["+r.trim()+"]" else s=s+"."+node.r.value
+		return s
+	else if type=="Slice" then
+		s=s+Transpile(node.target,ind+1)+"["
+		if node.startIdx!=0 then s=s+Transpile(node.startIdx,ind+1).trim()
+		s=s+":"
+		if node.endIdx!=0 then s=s+Transpile(node.endIdx,ind+1).trim()
+		return s+"]"
+	else if type=="Func" then
+		s=s+Transpile(node.target,ind+1)+"("
+		for arg in node.args
+			if __arg_idx!=0 then s=s+","
+			s=s+Transpile(arg,ind+1).trim()
+		end for
+		return s+")"
+	else if type=="ID" or type=="Type" then
+		if node.token.type=="String" then return """"+(node.token.value.replace("""",""""""))+""""
+		if node.token.type=="Null" then return "null"
+		return str(node.token.value)
+	else if type=="Array" then
+		s=s+"["
+		for child in node.children
+			if __child_idx!=0 then s=s+","
+			s=s+Transpile(child,ind+1).trim()
+		end for
+		return s+"]"
+	else if type=="Dict" then
+		s=s+"{"
+		for child in node.children
+			if __child_idx!=0 then s=s+","
+			s=s+Transpile(child[0],ind+1).trim()+":"+Transpile(child[1],ind+1).trim()
+		end for
+		return s+"}"
+	else
+		return ""
+	end if
+end function
