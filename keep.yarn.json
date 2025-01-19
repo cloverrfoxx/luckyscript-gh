@@ -1,0 +1,120 @@
+{
+    "all": {
+        "dependencies": [
+            "lky"
+        ]
+    },
+    "lky": {
+        "dependencies": [
+            "xlky",
+            "lexer.s2",
+            "parser.s2",
+            "transpiler.s2",
+            "src/lky.ls"
+        ],
+        "commands": [
+            "rm lky",
+            "rm lky.src",
+            "./xlky -so dddd src/lky.ls",
+            "mv dddd.src lky.src",
+            "mv dddd lky"
+        ]
+    },
+    "lexer.s2": {
+        "dependencies": [
+            "src/lexer.ls"
+        ],
+        "commands": [
+            "rm lib/lexer.so.src",
+            "./xlky -sio lib/dddd src/lexer.ls",
+            "mv lib/dddd.src lib/lexer.so.src",
+            "mv lib/dddd lib/lexer.so"
+        ]
+    },
+    "parser.s2": {
+        "dependencies": [
+            "src/ast.ls",
+            "src/parser.ls"
+        ],
+        "commands": [
+            "rm lib/ast.map.src",
+            "rm lib/parser.so.src",
+            "./xlky -sio lib/dddd src/ast.ls",
+            "mv lib/dddd.src lib/ast.map.src",
+            "mv lib/dddd lib/ast.map",
+            "./xlky -sio lib/dddd src/parser.ls",
+            "mv lib/dddd.src lib/parser.so.src",
+            "mv lib/dddd lib/parser.so"
+        ]
+    },
+    "transpiler.s2": {
+        "dependencies": [
+            "src/transpiler.ls"
+        ],
+        "commands": [
+            "rm lib/transpiler.so.src",
+            "./xlky -sio lib/dddd src/transpiler.ls",
+            "mv lib/dddd.src lib/transpiler.so.src",
+            "mv lib/dddd lib/transpiler.so"
+        ]
+    },
+    "xlky": {
+        "dependencies": [
+            "lexer.s1",
+            "parser.s1",
+            "transpiler.s1",
+            "src/lky.ls"
+        ],
+        "commands": [
+            "rm xlky",
+            "lky -sdo dddd src/lky.ls",
+            "mv dddd xlky",
+            "rm -r lib/"
+        ]
+    },
+    "lexer.s1": {
+        "dependencies": [
+            "src/lexer.ls"
+        ],
+        "commands": [
+            "rm lib/lexer.so",
+            "lky -sdio lib/dddd src/lexer.ls",
+            "mv lib/dddd lib/lexer.so"
+        ]
+    },
+    "parser.s1": {
+        "dependencies": [
+            "src/ast.ls",
+            "src/parser.ls"
+        ],
+        "commands": [
+            "rm lib/ast.map",
+            "rm lib/parser.so",
+            "lky -sdio lib/dddd src/ast.ls",
+            "mv lib/dddd lib/ast.map",
+            "lky -sdio lib/dddd src/parser.ls",
+            "mv lib/dddd lib/parser.so"
+        ]
+    },
+    "transpiler.s1": {
+        "dependencies": [
+            "src/transpiler.ls"
+        ],
+        "commands": [
+            "rm lib/transpiler.so",
+            "lky -sdio lib/dddd src/transpiler.ls",
+            "mv lib/dddd lib/transpiler.so"
+        ]
+    },
+    "clean": {
+        "commands": [
+            "rm -r lib/",
+            "rm xlky",
+            "rm lky",
+            "rm lky.src",
+            "rm dddd.src",
+            "rm dddd",
+            "rm .hash.yarn"
+        ]
+    }
+}

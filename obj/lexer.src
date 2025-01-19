@@ -1,0 +1,141 @@
+token_t={}
+token_t.pos=null
+token_t.type=null
+token_t.value=null
+Token=function(pos=0,type="Unknown",value=null)
+	token=new outer.token_t
+	token.pos=pos
+	token.type=type
+	token.value=value
+	token.classID="Token"
+	return token
+end function
+chars={"{":"LCurly","}":"RCurly","[":"LSquare","]":"RSquare","(":"LParen",")":"RParen","*":"Asterisk","^":"Exponent","%":"Percent",".":"Dot",",":"Comma",":":"Colon",";":"Semi","@":"Pointer"}
+kws={"if":"KW.if","else":"KW.else","while":"KW.while","for":"KW.for","continue":"KW.continue","break":"KW.break","in":"KW.in","return":"KW.return","new":"KW.new"}
+signs_l={">=":"GEqual","<=":"LEqual","==":"Equal","!=":"NEqual","||":"Or","&&":"And","++":"Inc","--":"Dec","+=":"Append","*=":"AssignMul","/=":"AssignDiv","%=":"AssignMod","^=":"AssignExp","-=":"Detach"}
+signs_s={">":"Greater","<":"Lesser","=":"Assign","!":"Not","+":"Plus","-":"Minus","/":"Slash"}
+ws=char(9)+"
+"+char(32)+char(13)
+lexer_c={}
+Lexer=function()
+	lexer=new outer.lexer_c
+	Token=@outer.Token
+	src=""
+	src_l=0
+	pos=0
+	open_stack=[]
+	tokens=[]
+	ws=outer.ws
+	chars=outer.chars
+	kws=outer.kws
+	signs_l=outer.signs_l
+	signs_s=outer.signs_s
+	lexer.reset=function()
+		outer.src=""
+		outer.src_l=0
+		outer.pos=0
+		outer.open_stack=[]
+		outer.tokens=[]
+		return outer.lexer
+	end function
+	lexer.lex=function(input)
+		outer.src=outer.src+input
+		outer.src_l=len(outer.src)
+		while pos<src_l
+			c=src[pos]
+			c2=src[pos:pos+2]
+			if c==ws[0] then
+				outer.pos=outer.pos+1
+			else if c==ws[1] then
+				if open_stack!=[] and open_stack[-1]==0 then pop(outer.open_stack)
+				outer.pos=outer.pos+1
+			else if c==ws[2] then
+				outer.pos=outer.pos+1
+			else if c==ws[3] then
+				outer.pos=outer.pos+1
+			else if c2=="*/" and open_stack!=[] and open_stack[-1]==1 then
+				pop(outer.open_stack)
+				outer.pos=outer.pos+2
+			else if open_stack!=[] and (open_stack[-1]==0 or open_stack[-1]==1) then
+				outer.pos=outer.pos+1
+			else if c2=="//" then
+				push(outer.open_stack,0)
+				outer.pos=outer.pos+2
+			else if c2=="/*" then
+				push(outer.open_stack,1)
+				outer.pos=outer.pos+2
+			else if c=="""" or c=="'" then
+				s=""
+				sp=pos
+				outer.pos=outer.pos+1
+				while pos<src_l and src[pos]!=c
+					if src[pos:pos+2]=="\n" then
+						outer.pos=outer.pos+2
+						s=s+"
+"
+						continue
+					else if src[pos]=="\" then
+						outer.pos=outer.pos+1
+						if pos>=src_l then break
+					end if
+					s=s+src[pos]
+					outer.pos=outer.pos+1
+				end while
+				outer.pos=outer.pos+1
+				push(outer.tokens,Token(sp,"String",s))
+			else if hasIndex(chars,c) then
+				push(outer.tokens,Token(pos,chars[c]))
+				outer.pos=outer.pos+1
+			else if indexOf("abcdefghijklmnopqrstuvwxyz_",lower(c))!=null then
+				sp=pos
+				while pos<src_l and indexOf("abcdefghijklmnopqrstuvwxyz0123456789_",lower(src[pos]))!=null
+					outer.pos=outer.pos+1
+				end while
+				s=src[sp:pos]
+				ls=lower(s)
+				if ls=="or" then
+					push(outer.tokens,Token(sp,"Or"))
+				else if ls=="and" then
+					push(outer.tokens,Token(sp,"And"))
+				else if ls=="not" then
+					push(outer.tokens,Token(sp,"Not"))
+				else if ls=="null" then
+					push(outer.tokens,Token(sp,"Null"))
+				else if ls=="true" then
+					push(outer.tokens,Token(sp,"Bool",1))
+				else if ls=="false" then
+					push(outer.tokens,Token(sp,"Bool",0))
+				else if hasIndex(kws,ls) then
+					push(outer.tokens,Token(sp,kws[ls]))
+				else
+					push(outer.tokens,Token(sp,"ID",s))
+				end if
+			else if typeof(to_int(c))=="number" then
+				sp=pos
+				d=0
+				while pos<src_l and (typeof(to_int(src[pos]))=="number" or src[pos]==".")
+					if src[pos]=="." then
+						if d then break
+						d=1
+					end if
+					outer.pos=outer.pos+1
+				end while
+				push(outer.tokens,Token(sp,"Int",val(src[sp:pos])))
+			else if hasIndex(signs_l,c2) then
+				push(outer.tokens,Token(pos,signs_l[c2]))
+				outer.pos=outer.pos+2
+			else if hasIndex(signs_s,c) then
+				push(outer.tokens,Token(pos,signs_s[c]))
+				outer.pos=outer.pos+1
+			else
+				push(outer.tokens,Token(pos,"Unknown",c))
+				outer.pos=outer.pos+1
+			end if
+		end while
+		while open_stack!=[] and open_stack[-1]==0
+			pop(open_stack)
+		end while
+		if open_stack!=[] then return 0 else return outer.tokens
+	end function
+	return lexer
+end function

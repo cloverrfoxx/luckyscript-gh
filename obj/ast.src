@@ -1,0 +1,254 @@
+ast_t={}
+AST={}
+AST.StateList=function(states)
+	node=new outer.ast_t
+	node.classID="StateList"
+	node.states=states
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"
+		for state in node.states
+			s=s+"
+"+state._print(i+2)
+		end for
+		return s
+	end function
+	return node
+end function
+AST.IfState=function(cond,blk,alt)
+	node=new outer.ast_t
+	node.classID="IfState"
+	node.cond=cond
+	node.blk=blk
+	node.alt=alt
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+"
+"+node.cond._print(i+2)+"
+"+node.blk._print(i+2)+"
+"+node.alt._print()
+	end function
+	return node
+end function
+AST.ContinueState=function()
+	node=new outer.ast_t
+	node.classID="ContinueState"
+	node._print=function(i=0)
+		return (" "*i)+node.classID
+	end function
+	return node
+end function
+AST.BreakState=function()
+	node=new outer.ast_t
+	node.classID="BreakState"
+	node._print=function(i=0)
+		return (" "*i)+node.classID
+	end function
+	return node
+end function
+AST.NewState=function(object)
+	node=new outer.ast_t
+	node.classID="NewState"
+	node.object=object
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+"
+"+node.object._print(i+2)
+	end function
+	return node
+end function
+AST.ForState=function()
+	node=new outer.ast_t
+	node.classID="ForState"
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"
+	end function
+	return node
+end function
+AST.ForInState=function(init,array,blk)
+	node=new outer.ast_t
+	node.classID="ForInState"
+	node.init=init
+	node.array=array
+	node.blk=blk
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+"
+"+node.init._print(i+2)+"
+"+node.array._print(i+2)+"
+"+node.blk._print(i+2)
+	end function
+	return node
+end function
+AST.WhileState=function(cond,blk)
+	node=new outer.ast_t
+	node.classID="WhileState"
+	node.cond=cond
+	node.blk=blk
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+"
+"+node.cond._print(i+2)+"
+"+node.blk._print(i+2)
+	end function
+	return node
+end function
+AST.ReturnState=function(val)
+	node=new outer.ast_t
+	node.classID="ReturnState"
+	node.val=val
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+"
+"+node.val._print(i+2)
+	end function
+	return node
+end function
+AST.Cap=function(expr)
+	node=new outer.ast_t
+	node.classID="Encapsulate"
+	node.expr=expr
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+"
+"+node.expr._print(i+2)
+	end function
+	return node
+end function
+AST.BinOp=function(l,op,r)
+	node=new outer.ast_t
+	node.classID="BinOp"
+	node.l=l
+	node.op=op
+	node.r=r
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+node.op+"
+"+node.l._print(i+2)+"
+"+node.r._print(i+2)
+	end function
+	return node
+end function
+AST.UnaryOp=function(op,ex)
+	node=new outer.ast_t
+	node.classID="UnaryOp"
+	node.op=op
+	node.ex=ex
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+node.op+"
+"+node.ex._print(i+2)
+	end function
+	return node
+end function
+AST.NoOp=function()
+	node=new outer.ast_t
+	node.classID="NoOp"
+	node._print=function(i=0)
+		return (" "*i)+node.classID
+	end function
+	return node
+end function
+AST.IndexOp=function(l,resolv,r)
+	node=new outer.ast_t
+	node.classID="IndexOp"
+	node.l=l
+	node.resolv=resolv
+	node.r=r
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"+node.resolv+"
+"+node.l._print(i+2)
+		if node.r.classID=="Token" then s=s+"
+"+(" "*i)+node.r.value else s=s+"
+"+node.r._print(i+2)
+		return s
+	end function
+	return node
+end function
+AST.Slice=function(target,si,ei)
+	node=new outer.ast_t
+	node.classID="Slice"
+	node.target=target
+	node.startIdx=si
+	node.endIdx=ei
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"+"
+"+node.target._print(i+2)
+		if typeof(node.startIdx)=="number" then s=s+"
+"+(" "*i+2)+node.startIdx else s=s+"
+"+node.startIdx._print(i+2)
+		if typeof(node.endIdx)=="number" then s=s+"
+"+(" "*i+2)+node.endIdx else s=s+"
+"+node.endIdx._print(i+2)
+		return s
+	end function
+	return node
+end function
+AST.Func=function(target,args)
+	node=new outer.ast_t
+	node.classID="Func"
+	node.target=target
+	node.args=args
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"+"
+"+node.target._print(i+2)
+		for arg in node.args
+			s=s+"
+"+arg._print(i+2)
+		end for
+		return s
+	end function
+	return node
+end function
+AST.ID=function(id)
+	node=new outer.ast_t
+	node.classID="ID"
+	node.token=id
+	node._print=function(i=0)
+		return (" "*i)+node.classID+":"+node.token.value
+	end function
+	return node
+end function
+AST.Type=function(t)
+	node=new outer.ast_t
+	node.classID="Type"
+	node.token=t
+	node._print=function(i=0)
+		return (" "*i)+node.token.type+":"+node.token.value
+	end function
+	return node
+end function
+AST.Array=function(children)
+	node=new outer.ast_t
+	node.classID="Array"
+	node.children=children
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"
+		for child in node.children
+			s=s+"
+"+child._print(i+2)
+		end for
+		return s
+	end function
+	return node
+end function
+AST.Dict=function(children)
+	node=new outer.ast_t
+	node.classID="Dict"
+	node.children=children
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"
+		for child in node.children
+			s=s+"
+"+child[0]._print(i+2)+":"+"
+"+child[1]._print(i+2)
+		end for
+		return s
+	end function
+	return node
+end function
+AST.Tuple=function(children)
+	node=new outer.ast_t
+	node.classID="Tuple"
+	node.children=children
+	node._print=function(i=0)
+		s=(" "*i)+node.classID+":"
+		for child in node.children
+			s=s+"
+"+child._print(i+2)
+		end for
+		return s
+	end function
+	return node
+end function

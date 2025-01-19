@@ -1,0 +1,199 @@
+//-- LuckyScript Tests
+//-- Importable and REPL Scripting Language
+//-- Unit Tests
+
+import_code("/root/foxlib/json.so")
+import_code("/root/foxlib/result.so")
+import_code("/root/foxlib/logger.so")
+//--import_ code("/root/foxlib/field.so")
+//--import_code ("/root/foxlib/interface.so") //-- unfinished
+
+//-- : -= logic starts here =-
+logger=Logger
+public={}
+
+import_code("/root/lky/lexer.so")
+import_code("/root/lky/parser.so")
+import_code("/root/lky/transpiler.so")
+lexer=Lexer
+parser=Parser
+
+TestTemplate = function()
+    //-- given
+    input = ""
+    lexer.reset
+    expected_tokens = []
+
+    //-- when
+    result = lexer.lex(input)
+
+    //-- then
+    if not result then return Err("Open_Stack")
+    if result.len != expected_tokens.len then return Err("Token length unmatched.")
+    for i in range(0, result.len-1)
+        if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] Does Not Match ["+expected_tokens[i]+"]")
+    end for
+    return Ok
+end function
+
+tests = {}
+
+tests.LexerAllTokens = function()
+    //-- given
+    input = (chars.indexes + kws.indexes + signs_l.indexes + signs_s.indexes).join(" ") + " ""Hello, world!"" x true False null 3.14 and not or /*ml*/ inbtwn //sl"
+    lexer.reset
+    expected_tokens = chars.values + kws.values + signs_l.values + signs_s.values + ["String", "ID", "Bool", "Bool", "Null", "Int", "And", "Not", "Or", "ID"]
+
+    //-- when
+    result = lexer.lex(input)
+
+    //-- then
+    if not result then return Err("Open_Stack")
+    if result.len != expected_tokens.len then return Err("Token length unmatched.")
+    for i in range(0, result.len-1)
+        if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] Does Not Match ["+expected_tokens[i]+"]")
+    end for
+    return Ok
+end function
+
+tests.LexerCanAnalyzeSingleWord = function()
+    //-- given
+    input = "xyz"
+    lexer.reset
+    expected_tokens = ["ID"]
+
+    //-- when
+    result = lexer.lex(input)
+
+    //-- then
+    if not result then return Err("Open_Stack")
+    if result.len != expected_tokens.len then return Err("Token length unmatched.")
+    for i in range(0, result.len-1)
+        if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] Does Not Match ["+expected_tokens[i]+"]")
+    end for
+    return Ok
+end function
+
+tests.LexerCanAnalyzeString = function()
+    //-- given
+    input = """Hello, world!"""
+    lexer.reset
+    expected_tokens = ["String"]
+
+    //-- when
+    result = lexer.lex(input)
+
+    //-- then
+    if not result then return Err("Open_Stack")
+    if result.len != expected_tokens.len then return Err("Token length unmatched.")
+    for i in range(0, result.len-1)
+        if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] Does Not Match ["+expected_tokens[i]+"]")
+    end for
+    return Ok
+end function
+
+tests.LexerCanAnalyzeTestStatement = function()
+    //-- given
+    input = "s = ""Hello, \""world\""!"";"
+    input = input+"if (len(s) >= 1) {"
+    input = input+"    print(s);"
+    input = input+"};"
+    lexer.reset
+    expected_tokens = ["ID", "Assign", "String", "Semi", "KW.if", "LParen", "ID", "LParen", "ID", "RParen", "GEqual", "Int", "RParen", "LCurly", "ID", "LParen", "ID", "RParen", "Semi", "RCurly", "Semi"]
+
+    //-- when
+    result = lexer.lex(input)
+
+    //-- then
+    if not result then return Err("Open_Stack")
+    if result.len != expected_tokens.len then return Err("Token length unmatched.")
+    for i in range(0, result.len-1)
+        if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] Does Not Match ["+expected_tokens[i]+"]")
+    end for
+    if result[2].value!="Hello, ""world""!" then return Err("String """+result[2].value+""" does not match expected value")
+    return Ok
+end function
+
+logger.info("Total tests: "+tests.len)
+for test in tests
+    result=test.value
+    if result.is_ok then
+        logger.info(test.key+": Success")
+    else
+        logger.err(test.key+": "+result.unwrap_err)
+    end if
+end for
+
+exit
+
+fancyError=function(section,line,text,message,file)
+    if not section then section="Unknown"
+    if not message then message="Unknown error"
+    s=text[line.line.real:line.pos.real+1]
+    if not file then file="REPL"
+    print char(160)
+    logger.err(file+" > Lucky."+section+" error "+line.line.disp+":"+line.pos.disp+". "+message)
+    print(s)
+    print( (" "*(line.pos.disp-1))+"^" )
+end function
+
+getLine=function(text,sub=null)
+    if sub==null then sub=pos-1
+    if sub>=len(text) then sub=len(text)-1
+    line={"line": {"real": 0, "disp": 1}, "pos": {"real": sub, "disp": 0}}
+    for i in range(0,sub)
+        line.pos.disp=line.pos.disp+1
+        if text[i]==char(10) then
+            line.line.real=i
+            line.line.disp=line.line.disp+1
+            line.pos.disp=0
+        end if
+    end for
+    return line
+end function
+
+// exit
+print
+input = get_shell.host_computer.File("/root/lky/bf.ls").get_content
+// input = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[""Hi""]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+// input = "a = 1; a++; a += 2; a--; a-= 2"
+logger.info("input:")
+print(input)
+logger.info "len: "+len(input)
+lexer.reset
+
+st=time
+tokens=lexer.lex(input)
+lelapsed=time-st
+
+// nt = []
+
+// for token in tokens
+//     fancyError("Lexer", getLine(input,token.pos),input,"I feel fine! Got "+token.type+": "+token.value, "Debug")
+// end for
+
+// exit
+
+st=time
+tree=parser.parse(tokens)
+pelapsed=time-st
+if tree.err then exit fancyError("Parser",getLine(input,parser.errpos),input,tree.err,"Debug")
+
+// print tree.value._print
+// logger.debug json.Serialize(tree.value)
+// print
+st=time
+transpiled=Transpile(tree.value)
+telapsed=time-st
+
+get_shell.host_computer.File("/root/output.src").set_content(transpiled)
+
+print
+logger.info("Lexer Elapsed time: "+lelapsed)
+logger.info("Parser Elapsed time: "+pelapsed)
+logger.info("Transpiler Elapsed time: "+telapsed)
+logger.info("Total time: "+(lelapsed+pelapsed+telapsed))
+
+
+//print
+//print nt

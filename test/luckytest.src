@@ -1,0 +1,67 @@
+import_code("/root/Fox.so")
+LS={}
+LS.debug=0
+LS.error=function(section,line,text,message,file)
+    if not section then section="Unknown"
+    if not message then message="Unknown error"
+    s=text[line.line.real:line.ind.real]
+    if not file then file="REPL"
+    print char(160)
+    print(file+" > Lucky."+section+" error "+line.line.disp+":"+line.ind.disp+". "+message)
+    print(s)
+    print( (" "*(line.ind.disp-1))+"^" )
+end function
+import_code("/root/lucky/lkylex")
+import_code("/root/lucky/lkyast")
+import_code("/root/lucky/lkyparse")
+
+code=get_shell.host_computer.File("/root/lucky/test.ls").get_content
+
+//code="//var assign test"+char(10)
+//code=code+"x = 1 + 1; y = x + 1; print(x); print(y);"+char(10)
+//code=code+"global test(x, y) = {"+char(10)
+//code=code+"print(x + y);"+char(10)
+//code=code+"};"+char(10)
+//code=code+"test(x, y);"
+
+//code="//member test"+char(10)
+//code=code+"{""test"": [1,2]}[""test""];"+char(10)
+
+code=get_shell.host_computer.File("/root/hex.wy.ls").get_content
+
+print("input code:")
+print(code)
+print
+lexer=LS.Lexer(code)
+st=time
+tokens=lexer.lex
+lt=time-st
+print("Lexer Elapsed: "+lt)
+if not tokens.bool then
+	errmsg = "Got "+tokens.out.type
+	if tokens.out.value then errmsg = tokens.out.value
+	exit LS.error("Lexer", tokens.out.line, lexer.text, "Invalid token. "+errmsg)
+end if
+tokens=tokens.out
+
+for token in tokens
+	print("Type: "+token.type+", Value: "+token.value)
+end for
+print
+
+exit
+
+parser=LS.Parser(tokens)
+st=time
+tree=parser.parse
+pt=time-st
+print("Parser Elapsed: "+pt)
+if not tree.bool then exit LS.error("Parser", tree.token.line, lexer.text, tree.message)
+tree=tree.out
+print(FoxLib.General.Serialize(tree, 1))
+
+
+
+
+
+print("Full time: "+(lt+pt))
