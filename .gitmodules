@@ -1,0 +1,3 @@
+[submodule "argparse-lky-gh"]
+	path = argparse-lky-gh
+	url = ../argparse-lky-gh.git
