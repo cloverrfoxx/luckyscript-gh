@@ -88,7 +88,13 @@ signs_s = {
     ',': 'Comma',
     ':': 'Colon',
     ';': 'Semi',
-    '@': 'Pointer'//'Ptr'
+    '@': 'Pointer',//'Ptr'
+    '(': 'LParen',
+    ')': 'RParen',
+    '{': 'LCurly',
+    '}': 'RCurly',
+    '[': 'LSquare',
+    ']': 'RSquare'
 };
 
 ws=char(9)+'\n '+char(13);
@@ -188,7 +194,7 @@ Lexer() = {
         else if c2 == '/*' {
             // TODO
             pushState();
-            outer.state = 11; // multiline comment
+            outer.state = 1; // multiline comment
             outer.pos+=2
         }
         else if c2 == '//' {
@@ -199,7 +205,7 @@ Lexer() = {
             outer.pos+=1
         }
         // handle state starters
-        else if c == '(' {
+        /*else if c == '(' {
             outer.tokens += [Token(pos,'LParen')];
             pushState();
             outer.state = 1; // paren
@@ -216,7 +222,7 @@ Lexer() = {
             pushState();
             outer.state = 3; // square
             outer.pos++
-        }
+        }*/
         else if c == "'" {
             if curr
                 outer.s_curr += [curr];
@@ -267,7 +273,6 @@ Lexer() = {
             outer.pos++
         }
         else {
-            print("HERE!!! "+pos+", c = "+c+", c2 = "+c2);
             outer.tokens += [Token(pos, 'Unknown', c)];
             outer.pos++
         }
@@ -332,7 +337,7 @@ Lexer() = {
                 handleDefState(c,c2)
             } // DEFAULT STATE
 
-            else if state == 11 {
+            else if state == 1 {
                 if pos >= src_l break;
                 if c2 == '*/' {
                     popState();
@@ -341,7 +346,7 @@ Lexer() = {
                 outer.pos++
             } // MULTILINE COMMENT
 
-            else if state == 1 {
+            /*else if state == 1 {
                 if pos >= src_l break;
                 if c == ')' {
                     outer.tokens += [Token(pos, 'RParen')];
@@ -369,7 +374,7 @@ Lexer() = {
                     outer.pos++
                 } else
                     handleDefState(c,c2)
-            } // SQUARE
+            } // SQUARE*/
 
             else if state == 4 {
                 if pos >= src_l break;
