@@ -110,7 +110,7 @@ Lexer() = {
     pos = 0;
     
     // state
-    s_state = [];
+    /*s_state = [];
     state = 0;
 
     // tokens
@@ -120,7 +120,36 @@ Lexer() = {
 
     // curr token
     s_curr = [];
-    curr = null;
+    curr = null;*/
+
+    // frame stack
+    Frame(state) =
+        return {
+            'state': state,
+            'buffer': '',
+            'tokens': [],
+            'token': null,
+            'parts': [],
+            'pos': 0
+        };
+    s_frame = [];
+    frame = Frame(0);
+    root_frame = frame;
+
+    pushFrame(state) = {
+        outer.s_frame += [outer.frame];
+        outer.frame = outer.Frame(state);
+        frame.pos = pos
+    };
+
+    popFrame() = {
+        if s_frame == []
+            outer.frame = root_frame //outer.Frame(0)
+        else {
+            outer.frame = s_frame[-1];
+            outer.s_frame = s_frame[:-1]
+        }
+    };
 
     ws=outer.ws;
     kws=outer.kws;
@@ -131,149 +160,135 @@ Lexer() = {
         outer.src = '';
         outer.src_l = 0;
         outer.pos = 0;
-        outer.s_state = [];
-        outer.state = 0;
-        outer.s_tokens = [];
-        outer.tokens = [];
-        outer.s_curr = [];
-        outer.curr = null;
+        outer.s_frame = [];
+        outer.frame = Frame(0);
+        outer.root_frame = outer.frame;
         return outer.lexer
     };
 
     lexer.done() =
-        return state == 0 && pos>=src_l;
-
-    pushState() =
-        outer.s_state += [outer.state];
-
-    popState() = {
-        if s_state == []
-            outer.state = 0
-        else {
-            outer.state = s_state[-1];
-            outer.s_state = s_state[:-1]
-        }
-    };
-
-    /*clrBuf() =
-        if buffer {
-            r = buffer;
-            outer.buffer = '';
-            return r
-        };
-    
-    addBuf(c) = {
-        outer.buffer += c
-    };*/
-
-    /*handleChars() = {
-        buf = clrBuf();
-        ls=lower(buf);
-        if ls=='null'
-            return Token(bufpos, 'Null')
-        else if ls=='true'
-            return Token(bufpos, 'Bool', 1)
-        else if ls=='false'
-            return Token(bufpos, 'Bool', 0)
-        else if hasIndex(kws,ls)
-            return Token(bufpos, kws[ls])
-        else
-            return Token(bufpos, 'ID', buf)
-    };*/
+        return frame.state == 0 && pos>=src_l;
 
     handleDefState(c,c2) = {
-        // if pos >= src_l {
-        //     outer.pos++;
-        //     return
-        // };
         // prelim skip ws
         if c==ws[0] || c==ws[1] || c==ws[2] || c==ws[3] {
-            outer.pos++
+            while pos < src_l && indexOf(ws,c)!=null {//(c == ws[0] || c == ws[1] || c == ws[2] || c == ws[3]) {
+                outer.pos++;
+                if pos < src_l c = src[pos]
+            }
+            // if pos >= src_l return;
+            // outer.pos++
         }
         // skip comments
+        else if c2 == '//' {
+            outer.pos+=2;
+            while pos < src_l && src[pos] != '\n'
+                outer.pos++;
+            if pos >= src_l return;
+            outer.pos++
+        }
         else if c2 == '/*' {
-            // TODO
-            pushState();
-            outer.state = 1; // multiline comment
+            pushFrame(1); // multiline comment
+            outer.pos+=2;
+            while pos < src_l && c2 != '*/' {
+                outer.pos++;
+                if pos < src_l c2 = src[pos:pos+2]
+            };
+            if c2 != '*/' return;
+            popFrame();
             outer.pos+=2
         }
-        else if c2 == '//' {
-            // TODO
-            outer.pos+=2;
-            while pos < src_l && src[pos] != '\n' outer.pos++;
-            if pos >= src_l return;
-            outer.pos+=1
-        }
         // handle state starters
-        /*else if c == '(' {
-            outer.tokens += [Token(pos,'LParen')];
-            pushState();
-            outer.state = 1; // paren
-            outer.pos++
-        }
-        else if c == '{' {
-            outer.tokens += [Token(pos, 'LCurly')];
-            pushState();
-            outer.state = 2; // curly
-            outer.pos++
-        }
-        else if c == '[' {
-            outer.tokens += [Token(pos, 'LSquare')];
-            pushState();
-            outer.state = 3; // square
-            outer.pos++
-        }*/
         else if c == "'" {
-            if curr
-                outer.s_curr += [curr];
-            outer.curr = Token(pos, 'String', '');
-            pushState();
-            outer.state = 4; // string squote
+            pushFrame(2); // string squote
+            outer.pos++;
+            if pos >= src_l return;
+            c = src[pos];
+            while pos < src_l && c != "'" {
+                if c == '\\' {
+                    c = handleEsc();
+                    if c == null break
+                } else
+                    outer.pos++;
+                frame.buffer += c;
+                if pos < src_l c = src[pos]
+            };
+            if c != "'" || pos >= src_l return;
+            token = Token(frame.pos, 'String', frame.buffer);
+            popFrame();
+            frame.tokens += [token];
             outer.pos++
         }
         else if c == '"' {
-            if curr
-                outer.s_curr += [curr];
-            outer.curr = Token(pos, 'String', '');
-            pushState();
-            outer.state = 5; // string dquote
+            pushFrame(3); // string dquote
+            outer.pos++;
+            if pos >= src_l return;
+            c = src[pos];
+            while pos < src_l && c != '"' {
+                if c == '\\' {
+                    c = handleEsc();
+                    if c == null break
+                } else
+                    outer.pos++;
+                frame.buffer += c;
+                if pos < src_l c = src[pos]
+            };
+            if c != '"' || pos >= src_l return;
+            token = Token(frame.pos, 'String', frame.buffer);
+            popFrame();
+            frame.tokens += [token];
             outer.pos++
         }
-        else if c2 == "f'" {
-            if curr
-                outer.s_curr += [curr];
-            outer.curr = Token(pos, 'FString', []);
-            pushState();
-            outer.state = 6; // f-string, 7 = formatter
+        /*else if c2 == "f'" {
+            pushFrame(4); // f-string, 5 = formatter
             outer.pos+=2
+        }*/
+        else if indexOf('abcdefghijklmnopqrstuvwxyz_',lower(c))!=null {
+            // pushFrame(6); // id
+            sp = pos;
+            while pos < src_l && indexOf('abcdefghijklmnopqrstuvwxyz0123456789_',lower(c))!=null {
+                outer.pos++;
+                if pos < src_l c = src[pos]
+            };
+            buffer = src[sp:pos];
+            ls = lower(buffer);
+
+            if ls == 'null'
+                frame.tokens += [Token(sp, 'Null')]
+            else if ls == 'true'
+                frame.tokens += [Token(sp, 'Bool', 1)]
+            else if ls == 'false'
+                frame.tokens += [Token(sp, 'Bool', 0)]
+            else if hasIndex(kws,ls)
+                frame.tokens += [Token(sp, kws[ls])]
+            else
+                frame.tokens += [Token(sp, 'ID', buffer)]
         }
-        else if is_match(c,'[a-zA-Z_]') {
-            // addBuf(c);
-            if curr
-                outer.s_curr += [curr];
-            outer.curr = Token(pos, 'ID', '');
-            pushState();
-            outer.state = 8 // id
-        }
-        else if is_match(c, '[0-9]') {
-            // addBuf(c);
-            if curr
-                outer.s_curr += [curr];
-            outer.curr = Token(pos, 'Int', '');
-            pushState();
-            outer.state = 9 // int, 10 = float
+        else if indexOf('0123456789',c)!=null {
+            // pushFrame(7); // int, 8 = float
+            sp = pos;
+            d = 0;
+            while pos < src_l && indexOf("0123456789.", c)!=null {
+                if c == '.' {
+                    if d break;
+                    d = 1
+                };
+                outer.pos++;
+                if pos < src_l c = src[pos]
+            };
+            frame.tokens += [Token(sp, 'Int', val(src[sp:pos]))]
         }
         // handle simple tokens
         else if hasIndex(signs_l,c2) {
-            outer.tokens += [Token(pos, signs_l[c2])];
+            frame.tokens += [Token(pos, signs_l[c2])];
             outer.pos+=2
         }
         else if hasIndex(signs_s,c) {
-            outer.tokens += [Token(pos, signs_s[c])];
+            frame.tokens += [Token(pos, signs_s[c])];
             outer.pos++
         }
         else {
-            outer.tokens += [Token(pos, 'Unknown', c)];
+            frame.tokens += [Token(pos, 'Unknown', c)];
             outer.pos++
         }
     };
@@ -325,237 +340,235 @@ Lexer() = {
                 c2 = null
             };
             /*print("loop");
-            print("state: "+state+" s_state: "+s_state);
-            print("tokens: "+tokens+" s_tokens: "+s_tokens);
-            print("token: "+curr+" s_token: "+s_curr);
+            print("frame:\n"+frame);
+            print("s_frame:\n"+s_frame);
             print("pos: "+pos+", c: "+c+", c2: "+c2);
             //user_input("press enter to continue");
-            print()*/
+            print();*/
 
-            if state == 0 {
+            if frame.state == 0 {
                 if pos >= src_l break;
                 handleDefState(c,c2)
             } // DEFAULT STATE
 
-            else if state == 1 {
-                if pos >= src_l break;
-                if c2 == '*/' {
-                    popState();
-                    outer.pos++
+            else if frame.state == 1 {
+                while pos < src_l && c2 != '*/' {
+                    outer.pos++;
+                    if pos < src_l c2 = src[pos:pos+2]
                 };
-                outer.pos++
+                if c2 != '*/' break;
+                popFrame();
+                outer.pos+=2
+                // if pos >= src_l break;
+                // if c2 == '*/' {
+                //     popFrame();
+                //     outer.pos++
+                // };
+                // outer.pos++
             } // MULTILINE COMMENT
 
-            /*else if state == 1 {
-                if pos >= src_l break;
-                if c == ')' {
-                    outer.tokens += [Token(pos, 'RParen')];
-                    popState();
-                    outer.pos++
-                } else
-                    handleDefState(c,c2)
-            } // PAREN
-
-            else if state == 2 {
-                if pos >= src_l break;
-                if c == '}' {
-                    outer.tokens += [Token(pos, 'RCurly')];
-                    popState();
-                    outer.pos++
-                } else
-                    handleDefState(c,c2)
-            } // CURLY
-
-            else if state == 3 {
-                if pos >= src_l break;
-                if c == ']' {
-                    outer.tokens += [Token(pos, 'RSquare')];
-                    popState();
-                    outer.pos++
-                } else
-                    handleDefState(c,c2)
-            } // SQUARE*/
-
-            else if state == 4 {
-                if pos >= src_l break;
-                if c == "'" {
-                    outer.tokens += [outer.curr];
-                    outer.curr = null;
-                    if outer.s_curr != [] {
-                        outer.curr = s_curr[-1];
-                        outer.s_curr = s_curr[:-1]
-                    };
-                    popState();
-                    outer.pos++
-                }
-                else if c == '\\' {
-                    c = handleEsc();
-                    if c == null break;
-                    outer.curr.value += c;
-                } else {
-                    outer.curr.value += c;
-                    outer.pos++
-                }
+            else if frame.state == 2 {
+                // if pos >= src_l break;
+                while pos < src_l && c != "'" {
+                    if c == '\\' {
+                        c = handleEsc();
+                        if c == null break
+                    } else
+                        outer.pos++;
+                    // frame.buffer += c;
+                    if pos < src_l c = src[pos]
+                };
+                if c != "'" || pos >= src_l break;
+                token = Token(frame.pos, 'String', src[frame.pos:pos]); //frame.buffer);
+                popFrame();
+                frame.tokens += [token];
+                outer.pos++
+                // if c == "'" {
+                //     token = Token(frame.pos, 'String', frame.buffer);
+                //     popFrame();
+                //     frame.tokens += [token];
+                //     outer.pos++
+                // }
+                // else if c == '\\' {
+                //     c = handleEsc();
+                //     if c == null break;
+                //     frame.buffer += c;
+                // } else {
+                //     frame.buffer += c;
+                //     outer.pos++
+                // }
             } // SQUOTE
 
-            else if state == 5 {
-                if pos >= src_l break;
-                if c == '"' {
-                    outer.tokens += [outer.curr];
-                    outer.curr = null;
-                    if outer.s_curr != [] {
-                        outer.curr = s_curr[-1];
-                        outer.s_curr = s_curr[:-1]
-                    };
-                    popState();
-                    outer.pos++
-                }
-                else if c == '\\' {
-                    c = handleEsc();
-                    if c == null break;
-                    outer.curr.value += c;
-                } else {
-                    outer.curr.value += c;
-                    outer.pos++
-                }
+            else if frame.state == 3 {
+                // if pos >= src_l break;
+                while pos < src_l && c != '"' {
+                    if c == '\\' {
+                        c = handleEsc();
+                        if c == null break
+                    } else
+                        outer.pos++;
+                    //frame.buffer += c;
+                    if pos < src_l c = src[pos]
+                };
+                if c != '"' || pos >= src_l break;
+                token = Token(frame.pos, 'String', src[frame.pos:pos]);//frame.buffer);
+                popFrame();
+                frame.tokens += [token];
+                outer.pos++
+                // if c == '"' {
+                //     token = Token(frame.pos, 'String', frame.buffer);
+                //     popFrame();
+                //     frame.tokens += [token];
+                //     outer.pos++
+                // }
+                // else if c == '\\' {
+                //     c = handleEsc();
+                //     if c == null break;
+                //     frame.buffer += c;
+                // } else {
+                //     frame.buffer += c;
+                //     outer.pos++
+                // }
             } // DQUOTE
 
-            else if state == 6 {
+            /*else if frame.state == 4 {
                 if pos >= src_l break;
                 if c == "'" {
-                    outer.tokens += [outer.curr];
-                    outer.curr = null;
-                    if outer.s_curr != [] {
-                        outer.curr = s_curr[-1];
-                        outer.s_curr = s_curr[:-1]
-                    };
-                    popState();
+                    token = Token(frame.pos, 'FString', frame.parts);
+                    popFrame();
+                    frame.tokens += [token];
                     outer.pos++
                 }
                 else if c2 == '${' {
-                    pushState();
-                    outer.state = 7; // 7 = formatter
-
-                    // outer.tokens should always be initialized
-                    outer.s_tokens += [outer.tokens];
-                    outer.tokens = [];
-
-                    outer.curr.value += [TokenPart(pos, 'Formatter')];
-
+                    pushFrame(5);
                     outer.pos += 2
                 }
                 else if c == '\\' {
                     c = handleEsc();
                     if c == null break;
-                    outer.curr.value += c;
+                    frame.buffer += c;
                 } else {
-                    if curr.value == [] or curr.value[-1].type != 'Chars'
-                        curr.value += [TokenPart(pos, 'Chars', '')];
-                    curr.value[-1].value += c;
+                    if frame.parts == [] or frame.parts[-1].type != 'Chars'
+                        frame.parts += [TokenPart(pos, 'Chars', '')];
+                    frame.parts[-1].value += c;
                     outer.pos++
                 }
             } // F-STRING
 
-            else if state == 7 {
+            else if frame.state == 5 {
                 if pos >= src_l break;
                 if c == '}' {
-                    popState();
+                    part = TokenPart(frame.pos, 'Formatter', frame.tokens);
 
-                    curr.value[-1].value = outer.tokens;
+                    popFrame();
 
-                    outer.tokens = [];
-                    if outer.s_tokens != [] {
-                        outer.tokens = s_tokens[-1];
-                        outer.s_tokens = s_tokens[:-1]
-                    };
+                    frame.parts += [part];
 
                     outer.pos++
                 }
                 else
                     handleDefState(c,c2)
-            } // FORMATTER
+            } // FORMATTER*/
 
-            else if state == 8 {
-                if pos >= src_l || !is_match(c,'[a-zA-Z0-9_]') {
-                    popState();
+            /*else if frame.state == 6 {
+                while pos < src_l && is_match(c,'[a-zA-Z0-9_]') {
+                    outer.pos++;
+                    frame.buffer += c;
+                    if pos<src_l c=src[pos]
+                };
+                ls = lower(frame.buffer);
 
-                    ls = lower(curr.value);
+                token = null;
 
-                    if ls == 'null' {
-                        curr.type='Null';
-                        curr.value = null
-                    }
-                    else if ls == 'true' {
-                        curr.type='Bool';
-                        curr.value = 1
-                    }
-                    else if ls == 'false' {
-                        curr.type='Bool';
-                        curr.value = 0
-                    }
-                    else if hasIndex(kws,ls)
-                        curr.type=kws[ls];
-                    outer.tokens += [curr];
+                if ls == 'null'
+                    token = Token(frame.pos, 'Null')
+                else if ls == 'true'
+                    token = Token(frame.pos, 'Bool', 1)
+                else if ls == 'false'
+                    token = Token(frame.pos, 'Bool', 0)
+                else if hasIndex(kws,ls)
+                    token = Token(frame.pos, kws[ls])
+                else
+                    token = Token(frame.pos, 'ID', frame.buffer);
 
-                    outer.curr = null;
-                    if outer.s_curr != [] {
-                        outer.curr = s_curr[-1];
-                        outer.s_curr = s_curr[:-1]
-                    }
-                } else {
-                    curr.value+=c;
-                    outer.pos++
-                }
-            } // ID
+                popFrame();
 
-            else if state == 9 {
-                if c == '.' {
-                    outer.state=10;
-                    curr.value+='.';
-                    outer.pos++
-                }
-                else if pos >= src_l || !is_match(c,'[0-9]') {
-                    popState();
+                frame.tokens += [token];
+                // if pos >= src_l || !is_match(c,'[a-zA-Z0-9_]') {
+                //     ls = lower(frame.buffer);
 
-                    curr.value = val(curr.value);
+                //     token = null;
 
-                    outer.tokens += [curr];
+                //     if ls == 'null'
+                //         token = Token(frame.pos, 'Null')
+                //     else if ls == 'true'
+                //         token = Token(frame.pos, 'Bool', 1)
+                //     else if ls == 'false'
+                //         token = Token(frame.pos, 'Bool', 0)
+                //     else if hasIndex(kws,ls)
+                //         token = Token(frame.pos, kws[ls])
+                //     else
+                //         token = Token(frame.pos, 'ID', frame.buffer);
+                    
+                //     popFrame();
 
-                    outer.curr = null;
-                    if outer.s_curr != [] {
-                        outer.curr = s_curr[-1];
-                        outer.s_curr = s_curr[:-1]
-                    }
-                }
-                else {
-                    curr.value+=c;
-                    outer.pos++
-                }
-            } // INT
+                //     frame.tokens += [token]
+                // } else {
+                //     frame.buffer += c;
+                //     outer.pos++
+                // }
+            } // ID*/
 
-            else if state == 10 {
+            /*else if frame.state == 7 || frame.state == 8 {
+                while pos < src_l && is_match(c,'[0-9\.]') {
+                    if c == '.' {
+                        if frame.state == 8 break;
+                        frame.state = 8
+                    };
+                    frame.buffer += c;
+                    outer.pos++;
+                    if pos < src_l c = src[pos]
+                };
+                token = Token(frame.pos, 'Int', val(frame.buffer));
+                popFrame();
+                frame.tokens += [token];
+                // if c == '.' {
+                //     frame.state=8;
+                //     frame.buffer += '.';
+                //     outer.pos++
+                // }
+                // else if pos >= src_l || !is_match(c,'[0-9]') {
+                //     token = Token(frame.pos, 'Int', val(frame.buffer));
+
+                //     popFrame();
+
+                //     frame.tokens += [token]
+                // }
+                // else {
+                //     frame.buffer += c;
+                //     outer.pos++
+                // }
+            } // INT*/
+
+            /*else if frame.state == 8 {
                 if pos >= src_l || !is_match(c, '[0-9]') {
-                    popState();
+                    token = Token(frame.pos, 'Int', val(frame.buffer));
 
-                    curr.value = val(curr.value);
+                    popFrame();
 
-                    outer.tokens += [curr];
-
-                    outer.curr = null;
-                    if outer.s_curr != [] {
-                        outer.curr = s_curr[-1];
-                        outer.s_curr = s_curr[:-1]
-                    }
+                    frame.tokens += [token]
                 }
                 else {
-                    curr.value+=c;
+                    frame.buffer += c;
                     outer.pos++
                 }
-            } // FLOAT
+            } // FLOAT*/
         };
 
-        while s_state != [] && s_state[-1] == 0 popState(); //outer.s_state = s_state[:-1];
-        if s_state!=[] return 0 else return outer.tokens
+        // while s_state != [] && s_state[-1] == 0 popState(); //outer.s_state = s_state[:-1];
+        // if s_state!=[] return 0 else return outer.tokens
+        while s_frame != [] && frame.state == 0 popFrame();
+        if s_frame != [] return 0 else return frame.tokens
     };
 
     return lexer
