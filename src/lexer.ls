@@ -176,10 +176,10 @@ Lexer() = {
     };*/
 
     handleDefState(c,c2) = {
-        if pos >= src_l {
-            outer.pos++;
-            return
-        };
+        // if pos >= src_l {
+        //     outer.pos++;
+        //     return
+        // };
         // prelim skip ws
         if c==ws[0] || c==ws[1] || c==ws[2] || c==ws[3] {
             outer.pos++
@@ -328,10 +328,12 @@ Lexer() = {
             print()*/
 
             if state == 0 {
+                if pos >= src_l break;
                 handleDefState(c,c2)
             } // DEFAULT STATE
 
             else if state == 11 {
+                if pos >= src_l break;
                 if c2 == '*/' {
                     popState();
                     outer.pos++
@@ -340,6 +342,7 @@ Lexer() = {
             } // MULTILINE COMMENT
 
             else if state == 1 {
+                if pos >= src_l break;
                 if c == ')' {
                     outer.tokens += [Token(pos, 'RParen')];
                     popState();
@@ -349,6 +352,7 @@ Lexer() = {
             } // PAREN
 
             else if state == 2 {
+                if pos >= src_l break;
                 if c == '}' {
                     outer.tokens += [Token(pos, 'RCurly')];
                     popState();
@@ -358,6 +362,7 @@ Lexer() = {
             } // CURLY
 
             else if state == 3 {
+                if pos >= src_l break;
                 if c == ']' {
                     outer.tokens += [Token(pos, 'RSquare')];
                     popState();
@@ -367,6 +372,7 @@ Lexer() = {
             } // SQUARE
 
             else if state == 4 {
+                if pos >= src_l break;
                 if c == "'" {
                     outer.tokens += [outer.curr];
                     outer.curr = null;
@@ -388,6 +394,7 @@ Lexer() = {
             } // SQUOTE
 
             else if state == 5 {
+                if pos >= src_l break;
                 if c == '"' {
                     outer.tokens += [outer.curr];
                     outer.curr = null;
@@ -409,6 +416,7 @@ Lexer() = {
             } // DQUOTE
 
             else if state == 6 {
+                if pos >= src_l break;
                 if c == "'" {
                     outer.tokens += [outer.curr];
                     outer.curr = null;
@@ -444,6 +452,7 @@ Lexer() = {
             } // F-STRING
 
             else if state == 7 {
+                if pos >= src_l break;
                 if c == '}' {
                     popState();
 
