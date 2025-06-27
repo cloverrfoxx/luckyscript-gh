@@ -25,8 +25,9 @@ end function
 kws={"if":"KW.if","else":"KW.else","while":"KW.while","repeat":"KW.repeat","for":"KW.for","continue":"KW.continue","break":"KW.break","in":"KW.in","not":"Not","and":"And","or":"Or","return":"KW.return","new":"KW.new"}
 signs_l={">=":"GEqual","<=":"LEqual","==":"Equal","!=":"NEqual","||":"Or","&&":"And","++":"Inc","--":"Dec","+=":"Append","*=":"AssignMul","/=":"AssignDiv","%=":"AssignMod","^=":"AssignExp","-=":"Detach"}
 signs_s={">":"Greater","<":"Lesser","=":"Assign","!":"Not","+":"Plus","-":"Minus","/":"Div","*":"Mul","^":"Exp","%":"Mod",".":"Dot",",":"Comma",":":"Colon",";":"Semi","@":"Ptr","(":"LParen",")":"RParen","{":"LCurly","}":"RCurly","[":"LSquare","]":"RSquare"}
-ws=char(9)+"
- "+char(13)
+ws="	
+ 
+"
 lexer_c={}
 Lexer=function()
 	lexer=new outer.lexer_c
@@ -180,13 +181,15 @@ Lexer=function()
 		c=src[pos+1]
 		if c=="n" then
 			outer.pos=outer.pos+2
-			return char(10)
+			return "
+"
 		else if c=="t" then
 			outer.pos=outer.pos+2
-			return char(9)
+			return "	"
 		else if c=="r" then
 			outer.pos=outer.pos+2
-			return char(13)
+			return "
+"
 		else if c=="u" then
 			if pos+6>=src_l then return null
 			c=src[pos+2:pos+6]

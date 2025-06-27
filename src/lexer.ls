@@ -1,6 +1,6 @@
 /*/ -=-= LuckyScript Lexer =-=-
              It's Real!
-    0.2.0
+    0.2.1
 /*/
 
 /* -= logic starts here =- */
@@ -97,7 +97,7 @@ signs_s = {
     ']': 'RSquare'
 };
 
-ws=char(9)+'\n '+char(13);
+ws='\t\n \r';
 
 lexer_c={};
 Lexer() = {
@@ -274,15 +274,15 @@ Lexer() = {
         c = src[pos+1];
         if c == 'n' {
             outer.pos+=2;
-            return char(10)
+            return '\n'
         }
         else if c == 't' {
             outer.pos+=2;
-            return char(9)
+            return '\t'
         }
         else if c == 'r' {
             outer.pos+=2;
-            return char(13)
+            return '\r'
         }
         else if c == 'u' {
             if pos+6 >= src_l return null;
