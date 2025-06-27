@@ -1,5 +1,5 @@
 /*/ -=-= LuckyScript Lexer =-=-
-            It's Real!
+             It's Real!
     0.2.0
 /*/
 
@@ -80,15 +80,15 @@ signs_s = {
     '!': 'Not',
     '+': 'Plus',
     '-': 'Minus',
-    '/': 'Slash',//'Div',
-    '*': 'Asterisk',//'Mul',
-    '^': 'Exponent',//'Exp',
-    '%': 'Percent',//'Mod',
+    '/': 'Div',
+    '*': 'Mul',
+    '^': 'Exp',
+    '%': 'Mod',
     '.': 'Dot',
     ',': 'Comma',
     ':': 'Colon',
     ';': 'Semi',
-    '@': 'Pointer',//'Ptr'
+    '@': 'Ptr',
     '(': 'LParen',
     ')': 'RParen',
     '{': 'LCurly',
@@ -220,10 +220,10 @@ Lexer() = {
             frame.tokens += [token];
             outer.pos++
         }
-        /*else if c2 == "f'" {
+        else if c2 == "f'" {
             pushFrame(4); // f-string, 5 = formatter
             outer.pos+=2
-        }*/
+        }
         else if indexOf('abcdefghijklmnopqrstuvwxyz_',lower(c))!=null {
             sp = pos;
             while pos < src_l && indexOf('abcdefghijklmnopqrstuvwxyz0123456789_',lower(src[pos]))!=null
@@ -363,8 +363,10 @@ Lexer() = {
                 outer.pos++
             } // DQUOTE
 
-            /*else if frame.state == 4 {
-                if pos >= src_l break;
+            else if frame.state == 4 {
+                // if pos >= src_l break;
+                if frame.parts == [] or frame.parts[-1].type != 'Chars'
+                    frame.parts += [TokenPart(pos, 'Chars', '')];
                 if c == "'" {
                     token = Token(frame.pos, 'FString', frame.parts);
                     popFrame();
@@ -378,17 +380,15 @@ Lexer() = {
                 else if c == '\\' {
                     c = handleEsc();
                     if c == null break;
-                    frame.buffer += c;
+                    frame.parts[-1].value += c;
                 } else {
-                    if frame.parts == [] or frame.parts[-1].type != 'Chars'
-                        frame.parts += [TokenPart(pos, 'Chars', '')];
                     frame.parts[-1].value += c;
                     outer.pos++
                 }
             } // F-STRING
 
             else if frame.state == 5 {
-                if pos >= src_l break;
+                // if pos >= src_l break;
                 if c == '}' {
                     part = TokenPart(frame.pos, 'Formatter', frame.tokens);
 
@@ -400,7 +400,7 @@ Lexer() = {
                 }
                 else
                     handleDefState(c,c2)
-            } // FORMATTER*/
+            } // FORMATTER
         };
 
         while s_frame != [] && frame.state == 0 popFrame();

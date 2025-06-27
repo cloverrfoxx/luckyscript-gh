@@ -1,0 +1,387 @@
+import_code("/root/LuckyScript/lky/lib/ast.map")
+parser_c={}
+Parser=function()
+	parser=new outer.parser_c
+	ast=outer.AST
+	Frame=function(tokens)
+		return {"tokens":tokens,"len":len(tokens),"pos":0}
+	end function
+	s_frame=[]
+	frame=null
+	root_frame=null
+	pushFrame=function(tokens)
+		outer.s_frame=outer.s_frame+[frame]
+		outer.frame=Frame(tokens)
+
+	end function
+	popFrame=function()
+		if s_frame==[] then
+			outer.frame=root_frame
+		else
+			outer.frame=s_frame[-1]
+			outer.s_frame=s_frame[:-1]
+		end if
+	end function
+	advance=function()
+		if frame.pos<frame.len then
+			frame.pos=frame.pos+1
+			return 1
+		else
+			return Bail()
+		end if
+	end function
+	expect=function(types)
+		if frame.pos>=frame.len then return advance()
+		tok=frame.tokens[frame.pos]
+		tt=tok.type
+		if types[1:]==[] then
+			type=types[-1]
+			if tt!=type then return Syn(tok,type)
+		else
+			if indexOf(types,tt)==null then return Syn(tok,"any of "+join(types,", "))
+		end if
+		advance()
+		return tok
+	end function
+	parser.error=null
+	Err=function(msg="Unknown Error",firstToken,lastToken)
+		parser.error={"msg":msg,"first":firstToken,"last":lastToken}
+	end function
+	Bail=function()
+		if frame.tokens==[] then token=null else token=frame.tokens[-1]
+		Err("Unexpected end of input",token,token)
+	end function
+	Syn=function(token,expected)
+		Err("Syntax error: Got "+token.type+", expected "+expected,token,token)
+	end function
+	parsers={}
+	parsers.statelist=function()
+		states=[]
+		while frame.pos<frame.len
+			while frame.pos<frame.len and frame.tokens[frame.pos].type=="Semi"
+				advance()
+			end while
+			if frame.pos>=frame.len then break
+			node=parsers.state()
+			if not node then return
+			states=states+[node]
+		end while
+		return ast.StateList(states)
+	end function
+	parsers.state=function()
+		tt=frame.tokens[frame.pos].type
+		if tt=="KW.if" then
+			node=parsers.ifstate()
+		else if tt=="KW.for" then
+			node=parsers.forstate()
+		else if tt=="KW.while" then
+			node=parsers.whilestate()
+		else if tt=="KW.return" then
+			node=parsers.returnstate()
+		else if tt=="KW.continue" then
+			advance()
+			return ast.ContinueState()
+		else if tt=="KW.break" then
+			advance()
+			return ast.BreakState()
+		else
+			node=parsers.assign()
+		end if
+		return node
+	end function
+	parsers.ifstate=function()
+		advance()
+		cond=parsers.assign()
+		if not cond then return
+		if frame.pos>=frame.len then return Bail()
+		if frame.tokens[frame.pos].type=="LCurly" then blk=parsers.block() else blk=parsers.state()
+		if not blk then return
+		alt=null
+		if frame.pos<frame.len and frame.tokens[frame.pos].type=="KW.else" then
+			advance()
+			if frame.pos>=frame.len then return Bail()
+			if frame.tokens[frame.pos].type=="KW.if" then
+				alt=parsers.ifstate()
+			else if frame.tokens[frame.pos].type=="LCurly" then
+				alt=parsers.block()
+			else
+				alt=parsers.state()
+			end if
+			if not alt then return
+
+		end if
+		return ast.IfState(cond,blk,alt)
+	end function
+	parsers.block=function()
+		expect(["LCurly"])
+		states=[]
+		while frame.pos<frame.len and frame.tokens[frame.pos].type!="RCurly"
+			while frame.pos<frame.len and frame.tokens[frame.pos].type=="Semi"
+				advance()
+			end while
+			if frame.pos>=frame.len then break
+			node=parsers.state()
+			if not node then return
+			states=states+[node]
+		end while
+		if expect(["RCurly"]) then return ast.StateList(states) else return
+	end function
+	parsers.forstate=function()
+		advance()
+		tok=expect(["ID"])
+		if not tok then return
+		init=ast.ID(tok)
+		if frame.pos>=frame.len then return Bail()
+		if not expect(["KW.in"]) then return
+		item=parsers.condition()
+		if not item then return
+		if frame.pos>=frame.len then return Bail()
+		if frame.tokens[frame.pos].type=="LCurly" then blk=parsers.block() else blk=parsers.state()
+		if blk then return ast.ForInState(init,item,blk) else return
+	end function
+	parsers.whilestate=function()
+		advance()
+		cond=parsers.condition()
+		if not cond then return
+		if frame.pos>=frame.len then return Bail()
+		if frame.tokens[frame.pos].type=="LCurly" then blk=parsers.block() else blk=parsers.state()
+		if blk then return ast.WhileState(cond,blk) else return
+	end function
+	parsers.returnstate=function()
+		advance()
+		val=parsers.condition()
+		if not val then return
+		return ast.ReturnState(val)
+	end function
+	parsers._expr=function(ops,f)
+		node=f()
+		if not node then return
+		while frame.pos<frame.len
+			op=frame.tokens[frame.pos].type
+			if indexOf(ops,op)==null then break
+			advance()
+			ex=f()
+			if not ex then return
+			node=ast.BinOp(node,op,ex)
+		end while
+		return node
+	end function
+	parsers.assign=function()
+		node=parsers.condition()
+		if not node then return
+		if frame.pos<frame.len and indexOf(["Assign","Append","AssignMul","AssignDiv","AssignMod","AssignExp","Detach"],frame.tokens[frame.pos].type)!=null then
+			op=frame.tokens[frame.pos]
+			advance()
+			if frame.pos>=frame.len then return Bail()
+			if node.classID=="FuncAssign" then
+				if op.type!="Assign" then return Syn(op,"Assign")
+				if frame.tokens[frame.pos].type=="LCurly" then blk=parsers.block() else blk=parsers.state()
+				if blk then return ast.BinOp(node,op.type,blk) else return
+			else
+				r=parsers.condition()
+				if r then return ast.BinOp(node,op.type,r) else return
+			end if
+		else
+			return node
+		end if
+	end function
+	parsers.condition=function()
+		return parsers._expr(["And","Or"],parsers["comparison"])
+	end function
+	parsers.comparison=function()
+		return parsers._expr(["GEqual","LEqual","Equal","NEqual","Greater","Lesser"],parsers["expression"])
+	end function
+	parsers.expression=function()
+		return parsers._expr(["Plus","Minus"],parsers["term"])
+	end function
+	parsers.term=function()
+		return parsers._expr(["Mul","Div","Mod"],parsers["exponent"])
+	end function
+	parsers.exponent=function()
+		return parsers._expr(["Exp"],parsers["unary"])
+	end function
+	parsers.unary=function()
+		if frame.pos<frame.len and indexOf(["Plus","Minus","Not","Inc","Dec","Ptr"],frame.tokens[frame.pos].type)!=null then
+			op=frame.tokens[frame.pos].type
+			advance()
+			node=parsers.unary()
+			if not node then return
+			return ast.UnaryOp(op,node)
+		end if
+		node=parsers.newstate()
+		if not node then return
+		if frame.pos<frame.len and indexOf(["Inc","Dec"],frame.tokens[frame.pos].type)!=null then
+			node=ast.UnaryOp(frame.tokens[frame.pos].type,node)
+			advance()
+		end if
+		return node
+	end function
+	parsers.newstate=function()
+		if frame.tokens[frame.pos].type=="KW.new" then
+			advance()
+			node=parsers.varops()
+			if node then return ast.NewState(node) else return
+
+		else
+			return parsers.varops()
+		end if
+	end function
+	parsers.varops=function()
+		node=parsers.factor()
+		if not node then return
+		while frame.pos<frame.len and indexOf(["Dot","LSquare","LParen"],frame.tokens[frame.pos].type)!=null
+			if frame.tokens[frame.pos].type=="Dot" then
+				advance()
+				tok=expect(["ID"])
+				if not tok then return
+				node=ast.IndexOp(node,0,tok)
+			else if frame.tokens[frame.pos].type=="LSquare" then
+				advance()
+				startIdx=null
+				endIdx=null
+				if frame.pos<frame.len and frame.tokens[frame.pos].type=="Colon" then
+					advance()
+					startIdx=0
+					endIdx=parsers.condition()
+					if not endIdx then return
+				else
+					startIdx=parsers.condition()
+					if not startIdx then return
+					if frame.pos<frame.len and frame.tokens[frame.pos].type=="Colon" then
+						advance()
+						endIdx=0
+						if frame.pos<frame.len and frame.tokens[frame.pos].type!="RSquare" then
+							endIdx=parsers.condition()
+							if not endIdx then return
+
+						end if
+					end if
+				end if
+				if not expect(["RSquare"]) then return
+				if endIdx==null then node=ast.IndexOp(node,1,startIdx) else node=ast.Slice(node,startIdx,endIdx)
+			else if frame.tokens[frame.pos].type=="LParen" then
+				advance()
+				lookAheadPos=frame.pos
+				nest=0
+				while lookAheadPos<frame.len
+					if frame.tokens[lookAheadPos].type=="LParen" then
+						nest=nest+1
+					else if frame.tokens[lookAheadPos].type=="RParen" then
+						if nest==0 then break else nest=nest-1
+					end if
+					lookAheadPos=lookAheadPos+1
+				end while
+				if lookAheadPos>=frame.len then return Bail()
+				args=[]
+				if lookAheadPos+1>=frame.len or frame.tokens[lookAheadPos+1].type!="Assign" then
+					parsefn=parsers["condition"]
+					astfn=ast["Func"]
+				else
+					parsefn=parsers["constructor"]
+					astfn=ast["FuncAssign"]
+				end if
+				while frame.pos<frame.len and frame.tokens[frame.pos].type!="RParen"
+					arg=parsefn()
+					if arg then args=args+[arg] else return
+					if frame.pos>=frame.len then return Bail()
+					if indexOf(["Comma","RParen"],frame.tokens[frame.pos].type)==null then break
+					if frame.tokens[frame.pos].type=="Comma" then advance()
+
+				end while
+				if not expect(["RParen"]) then return
+				node=astfn(node,args)
+			end if
+		end while
+		return node
+	end function
+	parsers.constructor=function()
+		tok=expect(["ID"])
+		if not tok then return
+		node=ast.ID(tok)
+		if frame.pos<frame.len and frame.tokens[frame.pos].type=="Assign" then
+			advance()
+			if frame.pos>=frame.len then return Bail()
+			rhs=parsers.condition()
+			if rhs then return ast.Constructor(node,rhs) else return
+		else
+			return node
+		end if
+	end function
+	parsers.factor=function()
+		if frame.pos<frame.len and frame.tokens[frame.pos].type=="LParen" then
+			advance()
+			node=parsers.condition()
+			if not node then return
+			if not expect(["RParen"]) then return
+			return ast.Cap(node)
+		else
+			return parsers.primary()
+		end if
+	end function
+	parsers.primary=function()
+		if frame.pos>=frame.len then return Bail()
+		tok=frame.tokens[frame.pos]
+		if tok.type=="ID" then
+			return ast.ID(expect(["ID"]))
+		else if indexOf(["Null","Bool","String","Int"],tok.type)!=null then
+			return ast.Type(expect([tok.type]))
+		else if tok.type=="FString" then
+			advance()
+			elems=[]
+			exprs=[]
+			for part in tok.value
+				if part.type=="Chars" then
+					elems=elems+[part.value]
+				else if part.type=="Formatter" then
+					pushFrame(part.value)
+					node=parsers.condition()
+					if node then exprs=exprs+[node] else return
+					popFrame()
+
+				end if
+			end for
+			return ast.FString(elems,exprs)
+		else if tok.type=="LSquare" then
+			advance()
+			if frame.pos>=frame.len then return Bail()
+			type=frame.tokens[frame.pos].type
+			parts=[]
+			while frame.pos<frame.len and frame.tokens[frame.pos].type!="RSquare"
+				part=parsers.condition()
+				if part then parts=parts+[part] else return
+				if frame.pos>=frame.len then return Bail()
+				if indexOf(["Comma","RSquare"],frame.tokens[frame.pos].type)==null then break
+				if frame.tokens[frame.pos].type=="Comma" then advance()
+			end while
+			if not expect(["RSquare"]) then return
+			return ast.Array(parts)
+		else if tok.type=="LCurly" then
+			advance()
+			if frame.pos>=frame.len then return Bail()
+			parts=[]
+			while frame.pos<frame.len and frame.tokens[frame.pos].type!="RCurly"
+				lhs=parsers.condition()
+				if not lhs then return
+				if not expect(["Colon"]) then return
+				rhs=parsers.condition()
+				if not rhs then return
+				if frame.pos>=frame.len then return Bail()
+				if indexOf(["Comma","RCurly"],frame.tokens[frame.pos].type)==null then break
+				if frame.tokens[frame.pos].type=="Comma" then advance()
+				parts=parts+[{"key":lhs,"value":rhs}]
+			end while
+			if not expect(["RCurly"]) then return
+			return ast.Dict(parts)
+		else
+			return ast.NoOp()
+		end if
+	end function
+	parser.parse=function(tokens)
+		outer.s_frame=[]
+		outer.frame=Frame(tokens)
+		outer.root_frame=frame
+		parser.error=null
+		return parsers.statelist()
+	end function
+	return parser
+end function

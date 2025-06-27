@@ -1,0 +1,288 @@
+tokenpart_t={}
+tokenpart_t.pos=null
+tokenpart_t.type=null
+tokenpart_t.value=null
+TokenPart=function(pos=0,type="Unknown",value=null)
+	part=new outer.tokenpart_t
+	part.pos=pos
+	part.type=type
+	part.value=value
+	part.classID="TokenPart"
+	return part
+end function
+token_t={}
+token_t.pos=null
+token_t.type=null
+token_t.value=null
+Token=function(pos=0,type="Unknown",value=null)
+	token=new outer.token_t
+	token.pos=pos
+	token.type=type
+	token.value=value
+	token.classID="Token"
+	return token
+end function
+kws={"if":"KW.if","else":"KW.else","while":"KW.while","repeat":"KW.repeat","for":"KW.for","continue":"KW.continue","break":"KW.break","in":"KW.in","not":"Not","and":"And","or":"Or","return":"KW.return","new":"KW.new"}
+signs_l={">=":"GEqual","<=":"LEqual","==":"Equal","!=":"NEqual","||":"Or","&&":"And","++":"Inc","--":"Dec","+=":"Append","*=":"AssignMul","/=":"AssignDiv","%=":"AssignMod","^=":"AssignExp","-=":"Detach"}
+signs_s={">":"Greater","<":"Lesser","=":"Assign","!":"Not","+":"Plus","-":"Minus","/":"Div","*":"Mul","^":"Exp","%":"Mod",".":"Dot",",":"Comma",":":"Colon",";":"Semi","@":"Ptr","(":"LParen",")":"RParen","{":"LCurly","}":"RCurly","[":"LSquare","]":"RSquare"}
+ws=char(9)+"
+ "+char(13)
+lexer_c={}
+Lexer=function()
+	lexer=new outer.lexer_c
+	Token=@outer.Token
+	TokenPart=@outer.TokenPart
+	src=""
+	src_l=0
+	pos=0
+	Frame=function(state)
+		return {"state":state,"buffer":"","tokens":[],"token":null,"parts":[],"pos":0}
+	end function
+	s_frame=[]
+	frame=Frame(0)
+	root_frame=frame
+	pushFrame=function(state)
+		outer.s_frame=outer.s_frame+[outer.frame]
+		outer.frame=outer.Frame(state)
+		frame.pos=pos
+	end function
+	popFrame=function()
+		if s_frame==[] then
+			outer.frame=root_frame
+		else
+			outer.frame=s_frame[-1]
+			outer.s_frame=s_frame[:-1]
+		end if
+	end function
+	ws=outer.ws
+	kws=outer.kws
+	signs_s=outer.signs_s
+	signs_l=outer.signs_l
+	lexer.reset=function()
+		outer.src=""
+		outer.src_l=0
+		outer.pos=0
+		outer.s_frame=[]
+		outer.frame=Frame(0)
+		outer.root_frame=outer.frame
+		return outer.lexer
+	end function
+	lexer.done=function()
+		return frame.state==0 and pos>=src_l
+	end function
+	handleDefState=function(c,c2)
+		if indexOf(ws,c)!=null then
+			while pos<src_l and indexOf(ws,src[pos])!=null
+				outer.pos=outer.pos+1
+			end while
+		else if c2=="//" then
+			outer.pos=outer.pos+2
+			while pos<src_l and src[pos]!="
+"
+				outer.pos=outer.pos+1
+			end while
+			if pos>=src_l then return
+			outer.pos=outer.pos+1
+		else if c2=="/*" then
+			pushFrame(1)
+			outer.pos=outer.pos+2
+			while pos<src_l and src[pos:pos+2]!="*/"
+				outer.pos=outer.pos+1
+			end while
+			if pos>=src_l then return
+			popFrame()
+			outer.pos=outer.pos+2
+		else if c=="'" then
+			pushFrame(2)
+			outer.pos=outer.pos+1
+			if pos>=src_l then return
+			c=src[pos]
+			while pos<src_l and c!="'"
+				if c=="\" then
+					c=handleEsc()
+					if c==null then break
+				else
+					outer.pos=outer.pos+1
+				end if
+				frame.buffer=frame.buffer+c
+				if pos<src_l then c=src[pos]
+			end while
+			if c!="'" or pos>=src_l then return
+			token=Token(frame.pos,"String",frame.buffer)
+			popFrame()
+			frame.tokens=frame.tokens+[token]
+			outer.pos=outer.pos+1
+		else if c=="""" then
+			pushFrame(3)
+			outer.pos=outer.pos+1
+			if pos>=src_l then return
+			c=src[pos]
+			while pos<src_l and c!=""""
+				if c=="\" then
+					c=handleEsc()
+					if c==null then break
+				else
+					outer.pos=outer.pos+1
+				end if
+				frame.buffer=frame.buffer+c
+				if pos<src_l then c=src[pos]
+			end while
+			if c!="""" or pos>=src_l then return
+			token=Token(frame.pos,"String",frame.buffer)
+			popFrame()
+			frame.tokens=frame.tokens+[token]
+			outer.pos=outer.pos+1
+		else if c2=="f'" then
+			pushFrame(4)
+			outer.pos=outer.pos+2
+		else if indexOf("abcdefghijklmnopqrstuvwxyz_",lower(c))!=null then
+			sp=pos
+			while pos<src_l and indexOf("abcdefghijklmnopqrstuvwxyz0123456789_",lower(src[pos]))!=null
+				outer.pos=outer.pos+1
+			end while
+			buffer=src[sp:pos]
+			ls=lower(buffer)
+			if ls=="null" then
+				frame.tokens=frame.tokens+[Token(sp,"Null")]
+			else if ls=="true" then
+				frame.tokens=frame.tokens+[Token(sp,"Bool",1)]
+			else if ls=="false" then
+				frame.tokens=frame.tokens+[Token(sp,"Bool",0)]
+			else if hasIndex(kws,ls) then
+				frame.tokens=frame.tokens+[Token(sp,kws[ls])]
+			else
+				frame.tokens=frame.tokens+[Token(sp,"ID",buffer)]
+			end if
+		else if indexOf("0123456789",c)!=null then
+			sp=pos
+			d=0
+			while pos<src_l and indexOf("0123456789.",src[pos])!=null
+				if c=="." then
+					if d then break
+					d=1
+				end if
+				outer.pos=outer.pos+1
+			end while
+			frame.tokens=frame.tokens+[Token(sp,"Int",val(src[sp:pos]))]
+		else if hasIndex(signs_l,c2) then
+			frame.tokens=frame.tokens+[Token(pos,signs_l[c2])]
+			outer.pos=outer.pos+2
+		else if hasIndex(signs_s,c) then
+			frame.tokens=frame.tokens+[Token(pos,signs_s[c])]
+			outer.pos=outer.pos+1
+		else
+			frame.tokens=frame.tokens+[Token(pos,"Unknown",c)]
+			outer.pos=outer.pos+1
+		end if
+	end function
+	handleEsc=function()
+		if pos+1>=src_l then return null
+		c=src[pos+1]
+		if c=="n" then
+			outer.pos=outer.pos+2
+			return char(10)
+		else if c=="t" then
+			outer.pos=outer.pos+2
+			return char(9)
+		else if c=="r" then
+			outer.pos=outer.pos+2
+			return char(13)
+		else if c=="u" then
+			if pos+6>=src_l then return null
+			c=src[pos+2:pos+6]
+			outer.pos=outer.pos+6
+			return char(val(c))
+		else if c=="x" then
+			if pos+4>=src_l then return null
+			c=src[pos+2:pos+4]
+			outer.pos=outer.pos+4
+			return "\xPLACEHOLDER"
+		else
+			outer.pos=outer.pos+2
+			return c
+		end if
+	end function
+	lexer.lex=function(input)
+		outer.src=outer.src+input
+		outer.src_l=len(outer.src)
+		while pos<src_l
+			c=src[pos]
+			c2=src[pos:pos+2]
+			if frame.state==0 then
+				handleDefState(c,c2)
+			else if frame.state==1 then
+				while pos<src_l and src[pos:pos+2]!="*/"
+					outer.pos=outer.pos+1
+				end while
+				if pos>=src_l then break
+				popFrame()
+				outer.pos=outer.pos+2
+			else if frame.state==2 then
+				while pos<src_l and c!="'"
+					if c=="\" then
+						c=handleEsc()
+						if c==null then break
+					else
+						outer.pos=outer.pos+1
+					end if
+					frame.buffer=frame.buffer+c
+					if pos<src_l then c=src[pos]
+				end while
+				if c!="'" or pos>=src_l then break
+				token=Token(frame.pos,"String",frame.buffer)
+				popFrame()
+				frame.tokens=frame.tokens+[token]
+				outer.pos=outer.pos+1
+			else if frame.state==3 then
+				while pos<src_l and c!=""""
+					if c=="\" then
+						c=handleEsc()
+						if c==null then break
+					else
+						outer.pos=outer.pos+1
+					end if
+					frame.buffer=frame.buffer+c
+					if pos<src_l then c=src[pos]
+				end while
+				if c!="""" or pos>=src_l then break
+				token=Token(frame.pos,"String",frame.buffer)
+				popFrame()
+				frame.tokens=frame.tokens+[token]
+				outer.pos=outer.pos+1
+			else if frame.state==4 then
+				if frame.parts==[] or frame.parts[-1].type!="Chars" then frame.parts=frame.parts+[TokenPart(pos,"Chars","")]
+				if c=="'" then
+					token=Token(frame.pos,"FString",frame.parts)
+					popFrame()
+					frame.tokens=frame.tokens+[token]
+					outer.pos=outer.pos+1
+				else if c2=="${" then
+					pushFrame(5)
+					outer.pos=outer.pos+2
+				else if c=="\" then
+					c=handleEsc()
+					if c==null then break
+					frame.parts[-1].value=frame.parts[-1].value+c
+
+				else
+					frame.parts[-1].value=frame.parts[-1].value+c
+					outer.pos=outer.pos+1
+				end if
+			else if frame.state==5 then
+				if c=="}" then
+					part=TokenPart(frame.pos,"Formatter",frame.tokens)
+					popFrame()
+					frame.parts=frame.parts+[part]
+					outer.pos=outer.pos+1
+				else
+					handleDefState(c,c2)
+				end if
+			end if
+		end while
+		while s_frame!=[] and frame.state==0
+			popFrame()
+		end while
+		if s_frame!=[] then return 0 else return frame.tokens
+	end function
+	return lexer
+end function
