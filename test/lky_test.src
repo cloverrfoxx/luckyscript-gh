@@ -28,7 +28,7 @@ TestTemplate = function()
     result = lexer.lex(input)
 
     //-- then
-    if not result then return Err("Open_Stack")
+    if not result then return Err("s_frame")
     if result.len != expected_tokens.len then return Err("Token length unmatched. "+result.len+" / "+expected_tokens.len)
     for i in range(0, result.len-1)
         if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] ("+result[i].type+":"+result[i].value+") Does Not Match ["+expected_tokens[i]+"]")
@@ -48,7 +48,7 @@ tests.LexerAllTokens = function()
     result = lexer.lex(input)
 
     //-- then
-    if not result then return Err("Open_Stack")
+    if not result then return Err("s_frame")
     if result.len != expected_tokens.len then return Err("Token length unmatched. "+result.len+" / "+expected_tokens.len)
     for i in range(0, result.len-1)
         if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] ("+result[i].type+":"+result[i].value+") Does Not Match ["+expected_tokens[i]+"]")
@@ -66,7 +66,7 @@ tests.LexerCanAnalyzeSingleWord = function()
     result = lexer.lex(input)
 
     //-- then
-    if not result then return Err("Open_Stack")
+    if not result then return Err("s_frame")
     if result.len != expected_tokens.len then return Err("Token length unmatched. "+result.len+" / "+expected_tokens.len)
     for i in range(0, result.len-1)
         if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] ("+result[i].type+":"+result[i].value+") Does Not Match ["+expected_tokens[i]+"]")
@@ -84,7 +84,7 @@ tests.LexerCanAnalyzeString = function()
     result = lexer.lex(input)
 
     //-- then
-    if not result then return Err("Open_Stack")
+    if not result then return Err("s_frame")
     if result.len != expected_tokens.len then return Err("Token length unmatched. "+result.len+" / "+expected_tokens.len)
     for i in range(0, result.len-1)
         if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] ("+result[i].type+":"+result[i].value+") Does Not Match ["+expected_tokens[i]+"]")
@@ -105,7 +105,7 @@ tests.LexerCanAnalyzeTestStatement = function()
     result = lexer.lex(input)
 
     //-- then
-    if not result then return Err("Open_Stack")
+    if not result then return Err("s_frame")
     if result.len != expected_tokens.len then return Err("Token length unmatched. "+result.len+" / "+expected_tokens.len)
     for i in range(0, result.len-1)
         if result[i].type != expected_tokens[i] then return Err("Token ["+i+"] ("+result[i].type+":"+result[i].value+") Does Not Match ["+expected_tokens[i]+"]")
