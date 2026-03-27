@@ -1,6 +1,6 @@
 /*/ -=-= LuckyScript Lexer =-=-
              It's Real!
-    0.2.1
+    0.2.2
 /*/
 
 /* -= logic starts here =- */
@@ -373,9 +373,9 @@ Lexer() = {
                     frame.tokens += [token];
                     outer.pos++
                 }
-                else if c2 == '${' {
+                else if c == '{' {
                     pushFrame(5);
-                    outer.pos += 2
+                    outer.pos++
                 }
                 else if c == '\\' {
                     c = handleEsc();

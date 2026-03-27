@@ -259,9 +259,9 @@ Lexer=function()
 					popFrame()
 					frame.tokens=frame.tokens+[token]
 					outer.pos=outer.pos+1
-				else if c2=="${" then
+				else if c=="{" then
 					pushFrame(5)
-					outer.pos=outer.pos+2
+					outer.pos=outer.pos+1
 				else if c=="\" then
 					c=handleEsc()
 					if c==null then break
