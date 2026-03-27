@@ -69,7 +69,8 @@
             "rm xlky",
             "lky -sdo dddd src/lky.ls",
             "mv dddd xlky",
-            "rm -r lib/"
+            "rm -r lib/",
+            "mkdir lib/"
         ]
     },
     "lexer.s1": {
@@ -109,6 +110,7 @@
     "clean": {
         "commands": [
             "rm -r lib/",
+            "mkdir lib/",
             "rm xlky",
             "rm lky",
             "rm lky.src",
